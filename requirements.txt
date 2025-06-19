@@ -1,0 +1,20 @@
+# Core dependencies
+funasr>=1.0.0
+modelscope>=1.9.0
+
+# Web framework
+fastapi>=0.95.1
+uvicorn[standard]>=0.20.0
+
+# File handling
+aiofiles>=23.0.0
+ffmpeg-python>=0.2.0
+python-multipart>=0.0.6
+
+# Audio processing
+numpy>=1.21.0
+scipy>=1.7.0
+
+# Optional: for better performance
+# torch>=1.13.0
+# torchaudio>=0.13.0

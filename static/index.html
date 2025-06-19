@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AstroMao - 离线语音识别</title>
+    <!-- 引入crypto-js库用于MD5计算 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .upload-section {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            text-align: center;
+            border: 2px dashed #dee2e6;
+            transition: all 0.3s ease;
+        }
+
+        .upload-section:hover {
+            border-color: #4facfe;
+            background: #f0f8ff;
+        }
+
+        .upload-section.dragover {
+            border-color: #4facfe;
+            background: #e3f2fd;
+            transform: scale(1.02);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-btn {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(79, 172, 254, 0.3);
+        }
+
+        .upload-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .file-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e8f5e8;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .progress-container {
+            margin: 20px 0;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4facfe, #00f2fe);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .results-section {
+            display: none;
+        }
+
+        .results-header {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-item {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #4facfe;
+        }
+
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .full-text {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .sentences-container {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .sentence-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .sentence-item:hover {
+            background: #f0f8ff;
+            transform: translateX(5px);
+            box-shadow: 0 2px 8px rgba(79, 172, 254, 0.2);
+        }
+
+        .sentence-item.playing {
+            background: #e3f2fd;
+            border-left: 4px solid #4facfe;
+        }
+
+        .sentence-item::before {
+            content: '🎵';
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .sentence-item:hover::before {
+            opacity: 0.6;
+        }
+
+        .sentence-item:last-child {
+            border-bottom: none;
+        }
+
+        .sentence-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .speaker-tag {
+            background: #4facfe;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        .timestamp {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .sentence-text {
+            color: #333;
+            line-height: 1.5;
+        }
+
+        .error-message {
+            background: #ffe6e6;
+            color: #d63031;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .success-message {
+            background: #e8f5e8;
+            color: #00b894;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #4facfe;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .supported-formats {
+            margin-top: 15px;
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .stats {
+                flex-direction: column;
+            }
+
+            .sentence-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎙️ AstroMao</h1>
+            <p>离线语音识别 · 说话人分离 · 中英文支持</p>
+        </div>
+
+        <div class="main-content">
+            <div class="upload-section" id="uploadSection">
+                <h3>📁 上传音频文件或导入识别结果</h3>
+                <p>拖拽音频文件到此处或点击按钮选择文件，也可以导入之前保存的JSON结果文件</p>
+                <input type="file" id="fileInput" class="file-input" accept=".wav,.mp3,.m4a,.flac,.aac,.ogg">
+                <input type="file" id="jsonInput" class="file-input" accept=".json">
+                <input type="file" id="audioForJsonInput" class="file-input" accept=".wav,.mp3,.m4a,.flac,.aac,.ogg" style="display: none;">
+                <button class="upload-btn" id="uploadBtn">选择音频文件</button>
+                <button class="upload-btn" id="importBtn" style="background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);">📥 导入JSON结果</button>
+                <button class="upload-btn" id="selectAudioBtn" style="background: linear-gradient(135deg, #fd79a8 0%, #fdcb6e 100%); display: none;">🎵 选择对应音频</button>
+                <button class="upload-btn" id="recognizeBtn" style="display: none;" disabled>开始识别</button>
+                <button class="upload-btn" id="historyBtn" style="background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);">📋 历史记录</button>
+                
+                <div class="file-info" id="fileInfo">
+                    <p><strong>文件名:</strong> <span id="fileName"></span></p>
+                    <p><strong>文件大小:</strong> <span id="fileSize"></span></p>
+                    <p><strong>文件类型:</strong> <span id="fileType"></span></p>
+                </div>
+
+                <div class="supported-formats">
+                    音频格式: WAV, MP3, M4A, FLAC, AAC, OGG | 结果格式: JSON
+                </div>
+            </div>
+
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <p style="text-align: center; margin-top: 10px;">正在处理音频文件...</p>
+            </div>
+
+            <div class="error-message" id="errorMessage"></div>
+            <div class="success-message" id="successMessage"></div>
+
+            <div class="results-section" id="resultsSection">
+                <div class="results-header">
+                    <h3>📊 识别结果</h3>
+                    <!-- 音频播放器 -->
+                    <audio id="audioPlayer" controls style="width: 100%; margin-top: 15px; display: none;">
+                        您的浏览器不支持音频播放。
+                    </audio>
+                </div>
+
+                <div class="stats" id="stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalDuration">0</div>
+                        <div class="stat-label">总时长 (秒)</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="sentenceCount">0</div>
+                        <div class="stat-label">句子数量</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="speakerCount">0</div>
+                        <div class="stat-label">说话人数</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="wordCount">0</div>
+                        <div class="stat-label">字符数</div>
+                    </div>
+                </div>
+
+                <div class="full-text">
+                    <h4>📝 完整文本</h4>
+                    <div id="fullText"></div>
+                </div>
+
+                <div class="result-actions" id="resultActions" style="display: none; padding: 20px; background: #f8f9fa; border-top: 1px solid #eee; text-align: center;">
+                    <button onclick="saveResult()" style="background: #00b894; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin: 0 10px; cursor: pointer;">💾 保存结果</button>
+                    <button onclick="exportResult()" style="background: #4facfe; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin: 0 10px; cursor: pointer;">📥 导出JSON</button>
+                    <button onclick="showResultsHistory()" style="background: #6c5ce7; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin: 0 10px; cursor: pointer;">📋 历史记录</button>
+                </div>
+
+                <div class="sentences-container">
+                    <h4 style="padding: 15px 20px; margin: 0; background: #f8f9fa; border-bottom: 1px solid #eee;">🎯 分句结果</h4>
+                    <div id="sentencesList"></div>
+                </div>
+            </div>
+
+            <!-- 历史记录模态框 -->
+            <div id="historyModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 15px; width: 80%; max-width: 800px; max-height: 80%; overflow-y: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3>📋 识别结果历史记录</h3>
+                        <button onclick="closeHistoryModal()" style="background: #ddd; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer;">✕</button>
+                    </div>
+                    <div id="historyList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const jsonInput = document.getElementById('jsonInput');
+        const audioForJsonInput = document.getElementById('audioForJsonInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const importBtn = document.getElementById('importBtn');
+        const selectAudioBtn = document.getElementById('selectAudioBtn');
+        const recognizeBtn = document.getElementById('recognizeBtn');
+        const historyBtn = document.getElementById('historyBtn');
+        const uploadSection = document.getElementById('uploadSection');
+        const fileInfo = document.getElementById('fileInfo');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const resultsSection = document.getElementById('resultsSection');
+        const errorMessage = document.getElementById('errorMessage');
+        const successMessage = document.getElementById('successMessage');
+
+        let selectedFile = null;
+        let importedJsonData = null;
+        let selectedAudioForJson = null;
+
+        // File input change event
+        fileInput.addEventListener('change', handleFileSelect);
+        jsonInput.addEventListener('change', handleJsonImport);
+        audioForJsonInput.addEventListener('change', handleAudioForJsonSelect);
+        uploadBtn.addEventListener('click', () => fileInput.click());
+        importBtn.addEventListener('click', () => jsonInput.click());
+        selectAudioBtn.addEventListener('click', () => audioForJsonInput.click());
+        recognizeBtn.addEventListener('click', recognizeAudio);
+        historyBtn.addEventListener('click', showResultsHistory);
+
+        // Drag and drop events
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.classList.remove('dragover');
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                // 重置JSON导入相关状态
+                resetJsonImportState();
+                handleFile(file);
+            }
+        }
+
+        function handleFile(file) {
+            selectedFile = file;
+            
+            // Display file info
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileSize').textContent = formatFileSize(file.size);
+            document.getElementById('fileType').textContent = file.type || 'Unknown';
+            
+            fileInfo.style.display = 'block';
+            recognizeBtn.style.display = 'inline-block';
+            recognizeBtn.disabled = false;
+            
+            hideMessages();
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        async function recognizeAudio() {
+            if (!selectedFile) {
+                showError('请先选择音频文件');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('audio', selectedFile);
+
+            // Show progress
+            progressContainer.style.display = 'block';
+            recognizeBtn.disabled = true;
+            recognizeBtn.innerHTML = '<span class="loading"></span>识别中...';
+            hideMessages();
+            resultsSection.style.display = 'none';
+
+            // Simulate progress
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 90) progress = 90;
+                progressFill.style.width = progress + '%';
+            }, 200);
+
+            try {
+                const response = await fetch('/api/recognize', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                clearInterval(progressInterval);
+                progressFill.style.width = '100%';
+
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                    progressFill.style.width = '0%';
+                    recognizeBtn.disabled = false;
+                    recognizeBtn.innerHTML = '重新识别';
+
+                    if (result.success) {
+                        displayResults(result);
+                        showSuccess('识别完成！');
+                    } else {
+                        showError(result.message || '识别失败');
+                    }
+                }, 500);
+
+            } catch (error) {
+                clearInterval(progressInterval);
+                progressContainer.style.display = 'none';
+                progressFill.style.width = '0%';
+                recognizeBtn.disabled = false;
+                recognizeBtn.innerHTML = '开始识别';
+                showError('网络错误: ' + error.message);
+            }
+        }
+
+        let currentResult = null; // 存储当前识别结果
+        let audioPlayer = null; // 音频播放器引用
+        let currentAudioFile = null; // 当前音频文件
+
+        function displayResults(result) {
+            currentResult = result; // 保存当前结果
+            
+            // Update statistics
+            document.getElementById('totalDuration').textContent = result.total_duration || 0;
+            document.getElementById('sentenceCount').textContent = result.sentences.length;
+            document.getElementById('speakerCount').textContent = result.speakers.length;
+            document.getElementById('wordCount').textContent = result.text.length;
+
+            // Display full text
+            document.getElementById('fullText').textContent = result.text;
+
+            // 设置音频播放器
+            setupAudioPlayer();
+
+            // Display sentences
+            const sentencesList = document.getElementById('sentencesList');
+            sentencesList.innerHTML = '';
+
+            result.sentences.forEach((sentence, index) => {
+                const sentenceDiv = document.createElement('div');
+                sentenceDiv.className = 'sentence-item';
+                sentenceDiv.dataset.start = sentence.start;
+                sentenceDiv.dataset.end = sentence.end;
+                
+                const speakerColors = ['#4facfe', '#00f2fe', '#667eea', '#764ba2', '#f093fb', '#f5576c'];
+                const speakerColor = speakerColors[index % speakerColors.length];
+                
+                sentenceDiv.innerHTML = `
+                    <div class="sentence-header">
+                        <span class="speaker-tag" style="background: ${speakerColor}">${sentence.speaker}</span>
+                        <span class="timestamp">🎵 ${sentence.start}s - ${sentence.end}s (点击播放)</span>
+                    </div>
+                    <div class="sentence-text">${sentence.text}</div>
+                `;
+                
+                // 添加点击事件监听器
+                sentenceDiv.addEventListener('click', () => {
+                    playAudioSegment(sentence.start, sentence.end, sentenceDiv);
+                });
+                
+                sentencesList.appendChild(sentenceDiv);
+            });
+
+            // 显示操作按钮
+            document.getElementById('resultActions').style.display = 'block';
+            
+            resultsSection.style.display = 'block';
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            successMessage.style.display = 'none';
+        }
+
+        function showSuccess(message) {
+            successMessage.textContent = message;
+            successMessage.style.display = 'block';
+            errorMessage.style.display = 'none';
+        }
+
+        function hideMessages() {
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+        }
+
+        // 重置JSON导入相关状态
+        function resetJsonImportState() {
+            importedJsonData = null;
+            selectedAudioForJson = null;
+            selectAudioBtn.style.display = 'none';
+            selectAudioBtn.textContent = '🎵 选择对应音频';
+            selectAudioBtn.style.background = 'linear-gradient(135deg, #fd79a8 0%, #fdcb6e 100%)';
+            audioForJsonInput.value = '';
+        }
+
+        // 处理JSON文件导入
+        function handleJsonImport(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // 重置之前的状态
+            resetJsonImportState();
+
+            if (!file.name.toLowerCase().endsWith('.json')) {
+                showError('请选择JSON格式的文件');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    console.log('开始解析JSON文件:', file.name);
+                    const jsonData = JSON.parse(event.target.result);
+                    console.log('JSON解析成功，数据结构:', jsonData);
+                    
+                    // 验证JSON格式是否正确
+                    if (!validateJsonFormat(jsonData)) {
+                        showError('JSON文件格式不正确。请检查浏览器控制台查看详细错误信息。确保文件包含必要字段：text、sentences、speakers');
+                        return;
+                    }
+
+                    // 确保数据包含必要的统计信息
+                    if (!jsonData.total_duration) {
+                        jsonData.total_duration = jsonData.sentences.length > 0 ? 
+                            Math.max(...jsonData.sentences.map(s => s.end)) : 0;
+                    }
+
+                    // 保存导入的JSON数据
+                    importedJsonData = jsonData;
+                    
+                    // 显示导入的结果
+                    displayResults(jsonData);
+                    
+                    // 显示选择音频按钮（如果JSON包含audio_hash）
+                    if (jsonData.audio_hash) {
+                        selectAudioBtn.style.display = 'inline-block';
+                        const audioFileName = jsonData.filename ? `（原音频文件：${jsonData.filename}）` : '';
+                        showSuccess(`成功导入识别结果：${file.name}。如需播放音频，请选择对应的音频文件进行验证${audioFileName}。`);
+                    } else {
+                        const audioFileName = jsonData.filename ? `（原音频文件：${jsonData.filename}）` : '';
+                        showSuccess(`成功导入识别结果：${file.name}${audioFileName}`);
+                    }
+                    
+                    // 隐藏文件信息和识别按钮
+                    fileInfo.style.display = 'none';
+                    recognizeBtn.style.display = 'none';
+                    
+                } catch (error) {
+                    console.error('JSON解析错误:', error);
+                    showError('JSON文件解析失败：' + error.message + '。请确保文件是有效的JSON格式。');
+                }
+            };
+            
+            reader.onerror = function() {
+                showError('文件读取失败');
+            };
+            
+            reader.readAsText(file);
+        }
+
+        // 验证JSON格式
+        function validateJsonFormat(data) {
+            // 检查必要的字段
+            const requiredFields = ['text', 'sentences', 'speakers'];
+            for (const field of requiredFields) {
+                if (!(field in data)) {
+                    console.log(`Missing required field: ${field}`);
+                    return false;
+                }
+            }
+
+            // 检查sentences数组格式
+            if (!Array.isArray(data.sentences)) {
+                console.log('sentences is not an array');
+                return false;
+            }
+
+            // 检查每个句子的格式（更宽松的验证）
+            for (let i = 0; i < data.sentences.length; i++) {
+                const sentence = data.sentences[i];
+                if (!sentence.hasOwnProperty('text')) {
+                    console.log(`Sentence ${i} missing text field`);
+                    return false;
+                }
+                if (!sentence.hasOwnProperty('start') || typeof sentence.start !== 'number') {
+                    console.log(`Sentence ${i} missing or invalid start field`);
+                    return false;
+                }
+                if (!sentence.hasOwnProperty('end') || typeof sentence.end !== 'number') {
+                    console.log(`Sentence ${i} missing or invalid end field`);
+                    return false;
+                }
+                if (!sentence.hasOwnProperty('speaker')) {
+                    console.log(`Sentence ${i} missing speaker field`);
+                    return false;
+                }
+            }
+
+            // 检查speakers数组
+            if (!Array.isArray(data.speakers)) {
+                console.log('speakers is not an array');
+                return false;
+            }
+
+            console.log('JSON validation passed');
+            return true;
+        }
+
+        // 处理音频文件选择（用于JSON导入后的音频验证）
+        function handleAudioForJsonSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (!importedJsonData) {
+                showError('请先导入JSON结果文件');
+                return;
+            }
+
+            // 检查文件类型
+            const allowedTypes = ['audio/wav', 'audio/mpeg', 'audio/mp4', 'audio/flac', 'audio/aac', 'audio/ogg'];
+            if (!allowedTypes.includes(file.type) && !file.name.match(/\.(wav|mp3|m4a|flac|aac|ogg)$/i)) {
+                showError('不支持的音频格式');
+                return;
+            }
+
+            // 显示处理状态
+             showSuccess('正在计算音频文件hash值，请稍候...');
+             
+             // 计算音频文件的MD5 hash
+             const reader = new FileReader();
+             reader.onload = function(event) {
+                 try {
+                     const arrayBuffer = event.target.result;
+                     const calculatedHash = calculateMD5Hash(arrayBuffer);
+                     
+                     console.log('计算的音频hash:', calculatedHash);
+                     console.log('JSON中的hash:', importedJsonData.audio_hash);
+                     
+                     if (calculatedHash === importedJsonData.audio_hash) {
+                         // Hash匹配，设置音频文件
+                         selectedAudioForJson = file;
+                         selectedFile = file; // 设置为当前音频文件
+                         setupAudioPlayer(file);
+                         showSuccess(`音频文件验证成功！Hash值匹配，现在可以播放音频片段。`);
+                         selectAudioBtn.textContent = '✅ 音频已验证';
+                         selectAudioBtn.style.background = 'linear-gradient(135deg, #00b894 0%, #00cec9 100%)';
+                     } else {
+                         showError(`音频文件验证失败！Hash值不匹配。\n期望: ${importedJsonData.audio_hash}\n实际: ${calculatedHash}`);
+                     }
+                 } catch (error) {
+                     console.error('Hash计算错误:', error);
+                     showError('音频文件hash计算失败: ' + error.message);
+                 }
+             };
+            
+            reader.onerror = function() {
+                showError('音频文件读取失败');
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 使用crypto-js计算MD5 hash
+         function calculateMD5Hash(arrayBuffer) {
+             // 将ArrayBuffer转换为WordArray
+             const wordArray = CryptoJS.lib.WordArray.create(arrayBuffer);
+             // 计算MD5 hash
+             const hash = CryptoJS.MD5(wordArray).toString();
+             return hash;
+         }
+
+        // 设置音频播放器
+        function setupAudioPlayer(audioFile = null) {
+            audioPlayer = document.getElementById('audioPlayer');
+            const fileToUse = audioFile || selectedFile;
+            
+            if (fileToUse && currentAudioFile !== fileToUse) {
+                currentAudioFile = fileToUse;
+                const audioURL = URL.createObjectURL(fileToUse);
+                audioPlayer.src = audioURL;
+                audioPlayer.style.display = 'block';
+                
+                // 清理之前的URL对象
+                audioPlayer.addEventListener('loadstart', () => {
+                    if (audioPlayer.src && audioPlayer.src.startsWith('blob:')) {
+                        // 不立即清理，等播放完成后再清理
+                    }
+                });
+            }
+        }
+
+        // 播放音频片段
+        function playAudioSegment(startTime, endTime, sentenceElement) {
+            if (!audioPlayer || !audioPlayer.src) {
+                showError('音频文件未加载');
+                return;
+            }
+
+            // 移除之前的播放状态
+            document.querySelectorAll('.sentence-item.playing').forEach(item => {
+                item.classList.remove('playing');
+            });
+
+            // 添加当前播放状态
+            sentenceElement.classList.add('playing');
+
+            // 设置播放时间
+            audioPlayer.currentTime = startTime;
+            
+            // 播放音频
+            audioPlayer.play().catch(error => {
+                console.error('播放失败:', error);
+                showError('音频播放失败，请检查文件格式');
+                sentenceElement.classList.remove('playing');
+            });
+
+            // 监听时间更新，在指定时间停止
+            const timeUpdateHandler = () => {
+                if (audioPlayer.currentTime >= endTime) {
+                    audioPlayer.pause();
+                    sentenceElement.classList.remove('playing');
+                    audioPlayer.removeEventListener('timeupdate', timeUpdateHandler);
+                }
+            };
+
+            audioPlayer.addEventListener('timeupdate', timeUpdateHandler);
+
+            // 如果用户手动暂停，也要移除播放状态
+            const pauseHandler = () => {
+                sentenceElement.classList.remove('playing');
+                audioPlayer.removeEventListener('timeupdate', timeUpdateHandler);
+                audioPlayer.removeEventListener('pause', pauseHandler);
+            };
+
+            audioPlayer.addEventListener('pause', pauseHandler);
+        }
+
+        // 保存识别结果
+        async function saveResult() {
+            if (!currentResult) {
+                showError('没有可保存的结果');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/save_result', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(currentResult)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showSuccess(`结果已保存！ID: ${result.result_id}`);
+                } else {
+                    showError('保存失败: ' + result.message);
+                }
+            } catch (error) {
+                showError('保存失败: ' + error.message);
+            }
+        }
+
+        // 导出识别结果
+        async function exportResult() {
+            if (!currentResult || !currentResult.result_id) {
+                showError('请先保存结果再导出');
+                return;
+            }
+
+            try {
+                const link = document.createElement('a');
+                link.href = `/api/export/${currentResult.result_id}`;
+                link.download = `astromao_result_${currentResult.result_id}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showSuccess('结果已导出！');
+            } catch (error) {
+                showError('导出失败: ' + error.message);
+            }
+        }
+
+        // 显示历史记录
+        async function showResultsHistory() {
+            try {
+                const response = await fetch('/api/results');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayHistoryList(data.results);
+                    document.getElementById('historyModal').style.display = 'block';
+                } else {
+                    showError('获取历史记录失败');
+                }
+            } catch (error) {
+                showError('获取历史记录失败: ' + error.message);
+            }
+        }
+
+        // 显示历史记录列表
+        function displayHistoryList(results) {
+            const historyList = document.getElementById('historyList');
+            
+            if (results.length === 0) {
+                historyList.innerHTML = '<p style="text-align: center; color: #666;">暂无历史记录</p>';
+                return;
+            }
+
+            historyList.innerHTML = results.map(result => `
+                <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 10px; background: #f9f9f9;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <div>
+                            <strong>${result.filename}</strong>
+                            ${result.original_filename ? `<div style="color: #666; font-size: 0.85em; margin-top: 2px;">原音频: ${result.original_filename}</div>` : ''}
+                        </div>
+                        <span style="color: #666; font-size: 0.9em;">${new Date(result.timestamp).toLocaleString()}</span>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <div style="color: #666; font-size: 0.9em;">音频Hash: ${result.audio_hash}</div>
+                        <div style="color: #666; font-size: 0.9em;">时长: ${result.total_duration}秒 | 说话人: ${result.speakers_count} | 句子: ${result.sentences_count}</div>
+                    </div>
+                    <div style="margin-bottom: 10px; color: #333;">${result.text_preview}</div>
+                    <div style="text-align: right;">
+                        <button onclick="loadHistoryResult('${result.result_id}')" style="background: #00b894; color: white; border: none; padding: 5px 10px; border-radius: 3px; margin-left: 5px; cursor: pointer;">📂 加载</button>
+                        <button onclick="exportHistoryResult('${result.result_id}')" style="background: #4facfe; color: white; border: none; padding: 5px 10px; border-radius: 3px; margin-left: 5px; cursor: pointer;">📥 导出</button>
+                        <button onclick="deleteHistoryResult('${result.result_id}')" style="background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 3px; margin-left: 5px; cursor: pointer;">🗑️ 删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 加载历史记录结果
+        async function loadHistoryResult(resultId) {
+            try {
+                const response = await fetch(`/api/export/${resultId}`);
+                if (!response.ok) {
+                    throw new Error('获取历史记录失败');
+                }
+                
+                const jsonData = await response.json();
+                
+                // 关闭历史记录模态框
+                closeHistoryModal();
+                
+                // 重置状态
+                resetJsonImportState();
+                selectedFile = null;
+                
+                // 设置导入的JSON数据
+                importedJsonData = jsonData;
+                
+                // 显示结果
+                displayResults(jsonData);
+                
+                // 如果有音频哈希，显示选择音频按钮
+                if (jsonData.audio_hash) {
+                    selectAudioBtn.style.display = 'inline-block';
+                    selectAudioBtn.textContent = '🎵 选择对应音频';
+                    selectAudioBtn.style.background = 'linear-gradient(135deg, #fd79a8 0%, #fdcb6e 100%)';
+                    const audioFileName = jsonData.filename ? `（原音频文件：${jsonData.filename}）` : '';
+                    showSuccess(`历史记录已加载！请选择对应的音频文件进行验证${audioFileName}（音频哈希: ${jsonData.audio_hash.substring(0, 8)}...）`);
+                } else {
+                    const audioFileName = jsonData.filename ? `（原音频文件：${jsonData.filename}）` : '';
+                    showSuccess(`历史记录已加载！${audioFileName}`);
+                }
+                
+                // 隐藏文件信息和识别按钮
+                fileInfo.style.display = 'none';
+                recognizeBtn.style.display = 'none';
+                
+            } catch (error) {
+                showError('加载历史记录失败: ' + error.message);
+            }
+        }
+
+        // 导出历史记录结果
+        async function exportHistoryResult(resultId) {
+            try {
+                const link = document.createElement('a');
+                link.href = `/api/export/${resultId}`;
+                link.download = `astromao_result_${resultId}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showSuccess('结果已导出！');
+            } catch (error) {
+                showError('导出失败: ' + error.message);
+            }
+        }
+
+        // 删除历史记录结果
+        async function deleteHistoryResult(resultId) {
+            if (!confirm('确定要删除这个结果吗？')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/results/${resultId}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showSuccess('结果已删除！');
+                    showResultsHistory(); // 刷新历史记录列表
+                } else {
+                    showError('删除失败: ' + result.message);
+                }
+            } catch (error) {
+                showError('删除失败: ' + error.message);
+            }
+        }
+
+        // 关闭历史记录模态框
+        function closeHistoryModal() {
+            document.getElementById('historyModal').style.display = 'none';
+        }
+
+        // 点击模态框外部关闭
+        document.getElementById('historyModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeHistoryModal();
+            }
+        });
+
+        // Check server health on page load
+        window.addEventListener('load', async () => {
+            try {
+                const response = await fetch('/api/health');
+                const health = await response.json();
+                if (health.status === 'healthy') {
+                    console.log('Server is healthy');
+                }
+            } catch (error) {
+                showError('服务器连接失败，请检查服务是否正常运行');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+# AstroMao Configuration File
+# 配置文件 - 可以根据需要修改模型和参数
+
+# 服务器配置
+server:
+  host: "0.0.0.0"
+  port: 8000
+  temp_dir: "temp_dir/"
+  max_file_size: 100  # MB
+
+# 设备配置
+device:
+  type: "cpu"  # cpu 或 cuda
+  ncpu: 4      # CPU核心数
+
+# 模型配置
+models:
+  # ASR模型 - 语音识别
+  asr:
+    model_name: "Paraformer-Large"
+    model_id: "iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch"
+    description: "大型中文语音识别模型，支持时间戳和说话人分离"
+    languages: ["zh", "en"]
+    sample_rate: 16000
+    features:
+      - "时间戳支持"
+      - "说话人分离"
+      - "高精度识别"
+      - "标点符号预测"
+  
+  # VAD模型 - 语音活动检测
+  vad:
+    name: "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
+    description: "语音活动检测模型"
+  
+  # 标点模型 - 标点恢复
+  punc:
+    name: "iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch"
+    description: "标点恢复模型"
+  
+  # 说话人模型 - 说话人验证
+  speaker:
+    name: "iic/speech_campplus_sv_zh-cn_16k-common"
+    description: "说话人验证模型"
+    enabled: true
+  
+  # 说话人分离模型
+  diarization:
+    name: "iic/speech_diarization_sond-zh-cn-alimeeting-16k-n16k4-pytorch"
+    description: "说话人分离模型"
+    enabled: false  # 可选功能
+
+# 识别参数
+recognition:
+  # 基本参数
+  sentence_timestamp: true    # 是否返回句子时间戳
+  batch_size_s: 300          # 批处理大小（秒）
+  merge_vad: true            # 是否合并VAD结果
+  merge_length_s: 15         # 合并长度（秒）
+  
+  # VAD参数
+  vad:
+    max_single_segment_time: 60000  # 最大单段时间（毫秒）
+    speech_noise_thres: 0.6         # 语音噪声阈值
+    speech_pad_ms: 100              # 语音填充（毫秒）
+  
+  # 热词支持
+  hotwords:
+    enabled: false
+    file: "hotwords.txt"
+    words: []
+
+# 支持的音频格式
+audio:
+  supported_formats:
+    - "wav"
+    - "mp3"
+    - "m4a"
+    - "flac"
+    - "aac"
+    - "ogg"
+  
+  # 音频处理参数
+  processing:
+    sample_rate: 16000
+    channels: 1
+    format: "s16le"
+    codec: "pcm_s16le"
+
+# 输出配置
+output:
+  # 返回格式
+  include_confidence: false   # 是否包含置信度
+  include_word_timestamps: false  # 是否包含词级时间戳
+  
+  # 说话人标识
+  speaker_labels:
+    format: "Speaker_{id}"     # 说话人标签格式
+    colors: ["#4facfe", "#00f2fe", "#667eea", "#764ba2", "#f093fb", "#f5576c"]
+
+# 日志配置
+logging:
+  level: "INFO"              # DEBUG, INFO, WARNING, ERROR
+  disable_model_log: true    # 禁用模型日志
+  disable_progress_bar: true # 禁用进度条
+
+# 性能优化
+performance:
+  # 缓存设置
+  model_cache: true          # 是否缓存模型
+  
+  # 并发设置
+  max_concurrent_requests: 5 # 最大并发请求数
+  
+  # 内存管理
+  clear_cache_after_request: false  # 请求后清理缓存
