@@ -1,5 +1,7 @@
 # AstroMao - 离线语音识别Web应用
 
+![AstroMao 语音识别应用](https://raw.githubusercontent.com/yidahis/astromao/refs/heads/master/static/main.png)
+
 这是一个基于FunASR的离线语音识别Web应用，支持说话人分离、中英文识别和音频文件上传。
 
 ## ✨ 功能特性
