@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 class AstroMaoBenchmark:
-    def __init__(self, server_url: str = "http://localhost:8000"):
+    def __init__(self, server_url: str = "http://localhost:8001"):
         self.server_url = server_url
         self.results = []
         
@@ -216,7 +216,7 @@ class AstroMaoBenchmark:
 
 async def main():
     parser = argparse.ArgumentParser(description="AstroMao 性能测试")
-    parser.add_argument("--server", "-s", default="http://localhost:8000", 
+    parser.add_argument("--server", "-s", default="http://localhost:8001", 
                        help="服务器URL")
     parser.add_argument("--files", "-f", nargs="+", 
                        help="测试音频文件路径")

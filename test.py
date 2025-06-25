@@ -21,7 +21,7 @@ import requests
 
 
 class AstroMaoTester:
-    def __init__(self, base_url="http://localhost:8000"):
+    def __init__(self, base_url="http://localhost:8001"):
         self.base_url = base_url
         self.test_results = []
     
@@ -322,7 +322,7 @@ def main():
     parser.add_argument(
         "--url", 
         type=str, 
-        default="http://localhost:8000", 
+        default="http://localhost:8001", 
         help="Base URL of the AstroMao server"
     )
     parser.add_argument(

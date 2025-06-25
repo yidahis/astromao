@@ -62,7 +62,7 @@ mkdir -p static
 
 # 设置默认参数
 HOST=${HOST:-"0.0.0.0"}
-PORT=${PORT:-8000}
+PORT=${PORT:-8001}
 DEVICE=${DEVICE:-"cpu"}
 
 echo "🔧 Configuration:"

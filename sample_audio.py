@@ -134,7 +134,7 @@ def main():
     
     print(f"\n使用方法:")
     print(f"1. 启动AstroMao服务: python app.py")
-    print(f"2. 在浏览器中打开: http://localhost:8000")
+    print(f"2. 在浏览器中打开: http://localhost:8001")
     print(f"3. 上传生成的音频文件: {args.output}")
 
 if __name__ == "__main__":

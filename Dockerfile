@@ -35,11 +35,11 @@ RUN mkdir -p temp_dir static
 RUN chmod +x run.sh
 
 # 暴露端口
-EXPOSE 8000
+EXPOSE 8001
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/api/health || exit 1
+    CMD curl -f http://localhost:8001/api/health || exit 1
 
 # 启动命令
-CMD ["python", "app.py", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "app.py", "--host", "0.0.0.0", "--port", "8001"]

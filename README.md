@@ -43,7 +43,7 @@ pip install funasr fastapi uvicorn aiofiles ffmpeg-python
 python app.py
 ```
 
-2. 打开浏览器访问: http://localhost:8000
+2. 打开浏览器访问: http://localhost:8001
 
 3. 上传音频文件进行识别
 
@@ -93,7 +93,8 @@ astromao/
 ├── requirements.txt       # Python依赖
 ├── config.yaml           # 配置文件
 ├── app.py                # Web应用主程序
-├── demo.py               # 命令行测试脚本
+├── demo.py               # 命令行测试脚本科技你要 ·1且34567890-=【】=-098764の为去 ··1234
+
 ├── test.py               # 自动化测试脚本
 ├── benchmark.py          # 性能测试脚本
 ├── sample_audio.py       # 示例音频生成器
@@ -233,7 +234,7 @@ python benchmark.py --directory ./audio_samples/
 python test.py
 
 # 指定服务器地址
-python test.py --server http://localhost:8000
+python test.py --server http://localhost:8001
 
 # 测试前等待服务启动
 python test.py --wait 10
@@ -264,10 +265,10 @@ docker-compose down
 docker build -t astromao .
 
 # 运行容器
-docker run -p 8000:8000 astromao
+docker run -p 8001:8001 astromao
 
 # 挂载数据卷
-docker run -p 8000:8000 -v $(pwd)/temp_dir:/app/temp_dir astromao
+docker run -p 8001:8001 -v $(pwd)/temp_dir:/app/temp_dir astromao
 ```
 
 ### 方式3：使用Nginx反向代理
@@ -330,7 +331,7 @@ sudo yum install ffmpeg
 ### 4. 端口占用
 ```bash
 # 检查端口占用
-lsof -i :8000
+lsof -i :8001
 
 # 杀死占用进程
 kill -9 <PID>

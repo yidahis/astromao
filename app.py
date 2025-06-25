@@ -29,7 +29,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--host", type=str, default="0.0.0.0", required=False, help="host ip, localhost, 0.0.0.0"
 )
-parser.add_argument("--port", type=int, default=8000, required=False, help="server port")
+parser.add_argument("--port", type=int, default=8001, required=False, help="server port")
 parser.add_argument(
     "--asr_model",
     type=str,
@@ -367,6 +367,94 @@ async def list_results():
         raise HTTPException(status_code=500, detail=f"Failed to list results: {str(e)}")
 
 
+@app.post("/api/upload_audio/{result_id}")
+async def upload_audio_for_result(result_id: str, audio: UploadFile = File(...)):
+    """为指定结果上传并保存音频文件"""
+    logger.info(f"收到音频上传请求 - result_id: {result_id}, filename: {audio.filename}")
+    try:
+        # 确保results目录存在
+        os.makedirs("results", exist_ok=True)
+        logger.info(f"确保results目录存在")
+        
+        # 生成音频文件名（保持原始扩展名）
+        file_extension = os.path.splitext(audio.filename)[1] if audio.filename else '.wav'
+        audio_filename = f"{result_id}_audio{file_extension}"
+        audio_path = f"results/{audio_filename}"
+        logger.info(f"生成音频文件路径: {audio_path}")
+        
+        # 保存音频文件
+        logger.info(f"开始保存音频文件...")
+        async with aiofiles.open(audio_path, 'wb') as f:
+            content = await audio.read()
+            await f.write(content)
+            logger.info(f"音频文件内容已写入，大小: {len(content)} bytes")
+        
+        # 验证文件是否成功保存
+        if os.path.exists(audio_path):
+            file_size = os.path.getsize(audio_path)
+            logger.info(f"音频文件保存成功: {audio_path}, 文件大小: {file_size} bytes")
+        else:
+            logger.error(f"音频文件保存失败: 文件不存在 {audio_path}")
+            raise Exception("文件保存失败")
+        
+        return {
+            "success": True,
+            "audio_path": audio_filename,  # 返回相对路径
+            "message": "Audio file uploaded successfully"
+        }
+    
+    except Exception as e:
+        logger.error(f"Failed to upload audio: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to upload audio: {str(e)}")
+
+
+@app.get("/api/audio/{audio_filename}")
+async def get_audio_file(audio_filename: str):
+    """获取保存的音频文件"""
+    try:
+        audio_path = f"results/{audio_filename}"
+        if not os.path.exists(audio_path):
+            raise HTTPException(status_code=404, detail="Audio file not found")
+        
+        return FileResponse(
+            path=audio_path,
+            filename=audio_filename,
+            media_type="audio/mpeg"  # 通用音频类型
+        )
+    
+    except Exception as e:
+        logger.error(f"Failed to get audio file: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get audio file: {str(e)}")
+
+
+@app.put("/api/update_result/{result_id}")
+async def update_result(result_id: str, result_data: dict):
+    """更新已保存的识别结果"""
+    try:
+        result_file = f"results/{result_id}.json"
+        
+        # 确保结果目录存在
+        os.makedirs("results", exist_ok=True)
+        
+        # 更新时间戳
+        result_data["updated_timestamp"] = datetime.datetime.now().isoformat()
+        
+        # 保存更新后的结果
+        async with aiofiles.open(result_file, 'w', encoding='utf-8') as f:
+            await f.write(json.dumps(result_data, ensure_ascii=False, indent=2))
+        
+        logger.info(f"Result updated: {result_file}")
+        return {
+            "success": True,
+            "result_id": result_id,
+            "message": "Result updated successfully"
+        }
+    
+    except Exception as e:
+        logger.error(f"Failed to update result: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update result: {str(e)}")
+
+
 @app.delete("/api/results/{result_id}")
 async def delete_result(result_id: str):
     """删除指定ID的识别结果"""
@@ -375,13 +463,28 @@ async def delete_result(result_id: str):
         if not os.path.exists(result_file):
             raise HTTPException(status_code=404, detail="Result not found")
         
+        # 删除JSON文件
         os.remove(result_file)
-        logger.info(f"Result deleted: {result_file}")
+        logger.info(f"Result JSON deleted: {result_file}")
+        
+        # 查找并删除对应的音频文件
+        audio_files_deleted = []
+        for ext in ['.wav', '.mp3', '.m4a', '.flac', '.aac', '.ogg']:
+            audio_file = f"results/{result_id}_audio{ext}"
+            if os.path.exists(audio_file):
+                os.remove(audio_file)
+                audio_files_deleted.append(audio_file)
+                logger.info(f"Audio file deleted: {audio_file}")
+        
+        message = "Result deleted successfully"
+        if audio_files_deleted:
+            message += f", audio files deleted: {', '.join(audio_files_deleted)}"
         
         return {
             "success": True,
             "result_id": result_id,
-            "message": "Result deleted successfully"
+            "message": message,
+            "deleted_files": [result_file] + audio_files_deleted
         }
     
     except Exception as e:

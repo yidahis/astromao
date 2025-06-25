@@ -26,7 +26,7 @@
             background: white;
             border-radius: 20px;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
+            overflow: visible;
         }
 
         .header {
@@ -179,8 +179,23 @@
         .sentences-container {
             background: white;
             border-radius: 10px;
-            overflow: hidden;
+            overflow: visible;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .sentences-header {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 10px 10px 0 0;
+        }
+
+        .sentences-list-wrapper {
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+            border-radius: 0 0 10px 10px;
         }
 
         .sentence-item {
@@ -200,6 +215,34 @@
         .sentence-item.playing {
             background: #e3f2fd;
             border-left: 4px solid #4facfe;
+        }
+
+        .sentence-item.edit-mode {
+            cursor: pointer;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        .sentence-item.edit-mode:hover {
+            background: #e8f5e8;
+        }
+
+        .sentence-item.selected {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+        }
+
+        .sentence-item.selected::before {
+            content: '✓';
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #28a745;
+            font-weight: bold;
+            font-size: 1.2em;
         }
 
         .sentence-item::before {
@@ -384,12 +427,23 @@
                 <div class="result-actions" id="resultActions" style="display: none; padding: 20px; background: #f8f9fa; border-top: 1px solid #eee; text-align: center;">
                     <button onclick="saveResult()" style="background: #00b894; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin: 0 10px; cursor: pointer;">💾 保存结果</button>
                     <button onclick="exportResult()" style="background: #4facfe; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin: 0 10px; cursor: pointer;">📥 导出JSON</button>
-                    <button onclick="showResultsHistory()" style="background: #6c5ce7; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin: 0 10px; cursor: pointer;">📋 历史记录</button>
                 </div>
 
                 <div class="sentences-container">
-                    <h4 style="padding: 15px 20px; margin: 0; background: #f8f9fa; border-bottom: 1px solid #eee;">🎯 分句结果</h4>
-                    <div id="sentencesList"></div>
+                    <div class="sentences-header">
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #f8f9fa; border-bottom: 1px solid #eee;">
+                            <h4 style="margin: 0;">🎯 分句结果</h4>
+                            <button id="editModeBtn" onclick="toggleEditMode()" style="background: #fd79a8; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; display: inline-block; font-size: 14px; line-height: 1.4; text-align: center; vertical-align: middle; -webkit-appearance: none; -moz-appearance: none; appearance: none;">✏️ 编辑模式</button>
+                        </div>
+                        <div id="editControlPanel" style="display: none; padding: 10px 20px; background: #f1f3f5; border-bottom: 1px solid #eee;">
+                            <span id="selectedCount" style="margin-right: 15px; font-weight: bold;">已选择: 0</span>
+                            <button id="mergeBtn" onclick="mergeSelectedSentences()" style="background: #20c997; color: white; border: none; padding: 5px 15px; border-radius: 5px; margin-right: 10px; cursor: pointer; opacity: 0.6;" disabled>🔄 合并选中</button>
+                            <button onclick="clearSelection()" style="background: #868e96; color: white; border: none; padding: 5px 15px; border-radius: 5px; cursor: pointer;">❌ 清除选择</button>
+                        </div>
+                    </div>
+                    <div class="sentences-list-wrapper">
+                        <div id="sentencesList"></div>
+                    </div>
                 </div>
             </div>
 
@@ -426,6 +480,16 @@
         let selectedFile = null;
         let importedJsonData = null;
         let selectedAudioForJson = null;
+        
+        // 确保DOM加载完成
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM已加载完成');
+            // 检查关键元素是否存在
+            const editModeBtn = document.getElementById('editModeBtn');
+            const editControlPanel = document.getElementById('editControlPanel');
+            console.log('编辑模式按钮:', editModeBtn);
+            console.log('编辑控制面板:', editControlPanel);
+        });
 
         // File input change event
         fileInput.addEventListener('change', handleFileSelect);
@@ -490,7 +554,7 @@
 
         async function recognizeAudio() {
             if (!selectedFile) {
-                showError('请先选择音频文件');
+                alert('音频文件未加载，请先选择音频文件');
                 return;
             }
 
@@ -531,6 +595,13 @@
 
                     if (result.success) {
                         displayResults(result);
+                        
+                        // 识别完成后自动保存音频文件到results文件夹
+                        if (selectedFile && result.result_id) {
+                            console.log('识别完成，开始保存音频文件到results文件夹...');
+                            uploadAudioForResult(selectedFile, result.result_id);
+                        }
+                        
                         showSuccess('识别完成！');
                     } else {
                         showError(result.message || '识别失败');
@@ -550,6 +621,8 @@
         let currentResult = null; // 存储当前识别结果
         let audioPlayer = null; // 音频播放器引用
         let currentAudioFile = null; // 当前音频文件
+        let isEditMode = false; // 编辑模式状态
+        let selectedSentences = new Set(); // 选中的分句索引
 
         function displayResults(result) {
             currentResult = result; // 保存当前结果
@@ -575,6 +648,7 @@
                 sentenceDiv.className = 'sentence-item';
                 sentenceDiv.dataset.start = sentence.start;
                 sentenceDiv.dataset.end = sentence.end;
+                sentenceDiv.dataset.index = index;
                 
                 const speakerColors = ['#4facfe', '#00f2fe', '#667eea', '#764ba2', '#f093fb', '#f5576c'];
                 const speakerColor = speakerColors[index % speakerColors.length];
@@ -583,13 +657,20 @@
                     <div class="sentence-header">
                         <span class="speaker-tag" style="background: ${speakerColor}">${sentence.speaker}</span>
                         <span class="timestamp">🎵 ${sentence.start}s - ${sentence.end}s (点击播放)</span>
+                        <button class="edit-text-btn" onclick="toggleTextEdit(${index}, event)" style="display: none; background: #28a745; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 12px; margin-left: 10px;">✏️ 编辑</button>
                     </div>
-                    <div class="sentence-text">${sentence.text}</div>
+                    <div class="sentence-text" id="sentence-text-${index}">${sentence.text}</div>
+                    <textarea class="sentence-edit-input" id="sentence-edit-${index}" style="display: none; width: 100%; min-height: 60px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; resize: vertical;">${sentence.text}</textarea>
                 `;
                 
                 // 添加点击事件监听器
-                sentenceDiv.addEventListener('click', () => {
-                    playAudioSegment(sentence.start, sentence.end, sentenceDiv);
+                sentenceDiv.addEventListener('click', (e) => {
+                    if (isEditMode) {
+                        e.preventDefault();
+                        toggleSentenceSelection(index, sentenceDiv);
+                    } else {
+                        playAudioSegment(sentence.start, sentence.end, sentenceDiv);
+                    }
                 });
                 
                 sentencesList.appendChild(sentenceDiv);
@@ -599,7 +680,6 @@
             document.getElementById('resultActions').style.display = 'block';
             
             resultsSection.style.display = 'block';
-            resultsSection.scrollIntoView({ behavior: 'smooth' });
         }
 
         function showError(message) {
@@ -748,14 +828,14 @@
             if (!file) return;
 
             if (!importedJsonData) {
-                showError('请先导入JSON结果文件');
+                alert('音频文件未加载：请先导入JSON结果文件');
                 return;
             }
 
             // 检查文件类型
             const allowedTypes = ['audio/wav', 'audio/mpeg', 'audio/mp4', 'audio/flac', 'audio/aac', 'audio/ogg'];
             if (!allowedTypes.includes(file.type) && !file.name.match(/\.(wav|mp3|m4a|flac|aac|ogg)$/i)) {
-                showError('不支持的音频格式');
+                alert('音频文件未加载：不支持的音频格式，请选择wav、mp3、m4a、flac、aac或ogg格式的文件');
                 return;
             }
 
@@ -777,20 +857,24 @@
                          selectedAudioForJson = file;
                          selectedFile = file; // 设置为当前音频文件
                          setupAudioPlayer(file);
+                         
+                         // 上传音频文件到服务器并更新JSON
+                         uploadAudioForResult(file, importedJsonData.result_id);
+                         
                          showSuccess(`音频文件验证成功！Hash值匹配，现在可以播放音频片段。`);
                          selectAudioBtn.textContent = '✅ 音频已验证';
                          selectAudioBtn.style.background = 'linear-gradient(135deg, #00b894 0%, #00cec9 100%)';
                      } else {
-                         showError(`音频文件验证失败！Hash值不匹配。\n期望: ${importedJsonData.audio_hash}\n实际: ${calculatedHash}`);
+                         alert(`音频文件未加载：Hash值不匹配，请选择正确的音频文件\n期望: ${importedJsonData.audio_hash}\n实际: ${calculatedHash}`);
                      }
                  } catch (error) {
                      console.error('Hash计算错误:', error);
-                     showError('音频文件hash计算失败: ' + error.message);
+                     alert('音频文件未加载：hash计算失败 - ' + error.message);
                  }
              };
             
             reader.onerror = function() {
-                showError('音频文件读取失败');
+                alert('音频文件未加载：文件读取失败，请重新选择音频文件');
             };
             
             reader.readAsArrayBuffer(file);
@@ -803,6 +887,82 @@
              // 计算MD5 hash
              const hash = CryptoJS.MD5(wordArray).toString();
              return hash;
+         }
+
+        // 上传音频文件到服务器并更新JSON
+         async function uploadAudioForResult(audioFile, resultId) {
+             console.log('开始上传音频文件:', audioFile.name, 'resultId:', resultId);
+             try {
+                 const formData = new FormData();
+                 formData.append('audio', audioFile);
+                 
+                 console.log('发送上传请求到:', `/api/upload_audio/${resultId}`);
+                 const response = await fetch(`/api/upload_audio/${resultId}`, {
+                     method: 'POST',
+                     body: formData
+                 });
+                 
+                 console.log('上传响应状态:', response.status);
+                 const result = await response.json();
+                 console.log('上传响应结果:', result);
+                 
+                 if (result.success) {
+                     // 更新JSON数据中的音频路径
+                     if (importedJsonData) {
+                         importedJsonData.audio_path = result.audio_path;
+                         console.log('已更新 importedJsonData.audio_path:', result.audio_path);
+                     }
+                     // 同时更新currentResult中的音频路径
+                     if (currentResult) {
+                         currentResult.audio_path = result.audio_path;
+                         console.log('已更新 currentResult.audio_path:', result.audio_path);
+                     }
+                     // 自动同步更新到服务器
+                     console.log('开始自动同步结果到服务器...');
+                     await autoSyncResult();
+                     console.log('音频文件已上传并保存路径到JSON:', result.audio_path);
+                 } else {
+                     console.error('音频文件上传失败:', result.message);
+                 }
+             } catch (error) {
+                 console.error('音频文件上传错误:', error);
+             }
+         }
+
+         // 从服务器加载保存的音频文件
+         async function loadSavedAudioFile(audioPath) {
+             try {
+                 const response = await fetch(`/api/audio/${audioPath}`);
+                 if (response.ok) {
+                     const audioBlob = await response.blob();
+                     const audioFile = new File([audioBlob], audioPath, { type: audioBlob.type });
+                     
+                     // 设置为当前音频文件
+                     selectedFile = audioFile;
+                     selectedAudioForJson = audioFile;
+                     
+                     // 设置音频播放器
+                     setupAudioPlayer(audioFile);
+                     
+                     console.log('保存的音频文件已加载:', audioPath);
+                 } else {
+                     console.error('加载保存的音频文件失败:', response.statusText);
+                     // 如果音频文件不存在，显示选择音频按钮
+                     if (importedJsonData && importedJsonData.audio_hash) {
+                         selectAudioBtn.style.display = 'inline-block';
+                         selectAudioBtn.textContent = '🎵 选择对应音频';
+                         selectAudioBtn.style.background = 'linear-gradient(135deg, #fd79a8 0%, #fdcb6e 100%)';
+                     }
+                 }
+             } catch (error) {
+                 console.error('加载保存的音频文件错误:', error);
+                 // 如果加载失败，显示选择音频按钮
+                 if (importedJsonData && importedJsonData.audio_hash) {
+                     selectAudioBtn.style.display = 'inline-block';
+                     selectAudioBtn.textContent = '🎵 选择对应音频';
+                     selectAudioBtn.style.background = 'linear-gradient(135deg, #fd79a8 0%, #fdcb6e 100%)';
+                 }
+             }
          }
 
         // 设置音频播放器
@@ -828,7 +988,7 @@
         // 播放音频片段
         function playAudioSegment(startTime, endTime, sentenceElement) {
             if (!audioPlayer || !audioPlayer.src) {
-                showError('音频文件未加载');
+                alert('音频文件未加载，请先选择并加载音频文件');
                 return;
             }
 
@@ -846,7 +1006,7 @@
             // 播放音频
             audioPlayer.play().catch(error => {
                 console.error('播放失败:', error);
-                showError('音频播放失败，请检查文件格式');
+                alert('音频文件未加载或播放失败，请检查文件格式或重新选择音频文件');
                 sentenceElement.classList.remove('playing');
             });
 
@@ -869,6 +1029,34 @@
             };
 
             audioPlayer.addEventListener('pause', pauseHandler);
+        }
+
+        // 自动同步更新结果到JSON文件
+        async function autoSyncResult() {
+            if (!currentResult || !currentResult.result_id) {
+                // 如果没有result_id，说明还没有保存过，先保存
+                await saveResult();
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/update_result/${currentResult.result_id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(currentResult)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    console.log('结果已自动同步更新');
+                } else {
+                    console.error('自动同步失败:', result.message);
+                }
+            } catch (error) {
+                console.error('自动同步失败:', error.message);
+            }
         }
 
         // 保存识别结果
@@ -987,11 +1175,20 @@
                 // 设置导入的JSON数据
                 importedJsonData = jsonData;
                 
+                // 重要：为历史记录数据设置result_id，以便后续编辑时能正确更新
+                jsonData.result_id = resultId;
+                
                 // 显示结果
                 displayResults(jsonData);
                 
-                // 如果有音频哈希，显示选择音频按钮
-                if (jsonData.audio_hash) {
+                // 检查是否有保存的音频路径
+                if (jsonData.audio_path) {
+                    // 自动加载保存的音频文件
+                    loadSavedAudioFile(jsonData.audio_path);
+                    const audioFileName = jsonData.filename ? `（原音频文件：${jsonData.filename}）` : '';
+                    showSuccess(`历史记录已加载！音频文件已自动加载${audioFileName}`);
+                } else if (jsonData.audio_hash) {
+                    // 如果有音频哈希但没有保存的音频路径，显示选择音频按钮
                     selectAudioBtn.style.display = 'inline-block';
                     selectAudioBtn.textContent = '🎵 选择对应音频';
                     selectAudioBtn.style.background = 'linear-gradient(135deg, #fd79a8 0%, #fdcb6e 100%)';
@@ -1052,6 +1249,250 @@
         // 关闭历史记录模态框
         function closeHistoryModal() {
             document.getElementById('historyModal').style.display = 'none';
+        }
+
+        // 切换编辑模式
+        function toggleEditMode() {
+            isEditMode = !isEditMode;
+            const editModeBtn = document.getElementById('editModeBtn');
+            const editControlPanel = document.getElementById('editControlPanel');
+            const sentenceItems = document.querySelectorAll('.sentence-item');
+            
+            // 添加错误检查
+            if (!editModeBtn) {
+                console.error('编辑模式按钮未找到');
+                return;
+            }
+            if (!editControlPanel) {
+                console.error('编辑控制面板未找到');
+                return;
+            }
+            
+            if (isEditMode) {
+                // 进入编辑模式
+                editModeBtn.textContent = '👁️ 查看模式';
+                editModeBtn.style.background = '#17a2b8';
+                editControlPanel.style.display = 'block';
+                
+                // 为所有分句添加编辑模式样式
+                sentenceItems.forEach(item => {
+                    item.classList.add('edit-mode');
+                });
+                
+                // 显示所有编辑按钮
+                document.querySelectorAll('.edit-text-btn').forEach(btn => {
+                    btn.style.display = 'inline-block';
+                });
+                
+                showSuccess('已进入编辑模式，点击分句进行选择，可选择多个分句进行合并，或点击编辑按钮修改文本');
+            } else {
+                // 退出编辑模式
+                editModeBtn.textContent = '✏️ 编辑模式';
+                editModeBtn.style.background = '#fd79a8';
+                editControlPanel.style.display = 'none';
+                
+                // 移除编辑模式样式和选中状态
+                sentenceItems.forEach(item => {
+                    item.classList.remove('edit-mode', 'selected');
+                });
+                
+                // 隐藏所有编辑按钮
+                document.querySelectorAll('.edit-text-btn').forEach(btn => {
+                    btn.style.display = 'none';
+                });
+                
+                // 退出所有文本编辑状态
+                document.querySelectorAll('.sentence-edit-input').forEach(input => {
+                    input.style.display = 'none';
+                });
+                document.querySelectorAll('.sentence-text').forEach(text => {
+                    text.style.display = 'block';
+                });
+                
+                // 清除选择
+                selectedSentences.clear();
+                updateSelectedCount();
+                
+                showSuccess('已退出编辑模式');
+            }
+        }
+
+        // 切换分句选择状态
+        function toggleSentenceSelection(index, sentenceElement) {
+            if (selectedSentences.has(index)) {
+                selectedSentences.delete(index);
+                sentenceElement.classList.remove('selected');
+            } else {
+                selectedSentences.add(index);
+                sentenceElement.classList.add('selected');
+            }
+            
+            updateSelectedCount();
+        }
+
+        // 更新选中计数
+        function updateSelectedCount() {
+            const count = selectedSentences.size;
+            document.getElementById('selectedCount').textContent = count;
+            
+            const mergeBtn = document.getElementById('mergeBtn');
+            mergeBtn.disabled = count < 2;
+            
+            if (count >= 2) {
+                mergeBtn.style.background = '#28a745';
+                mergeBtn.style.cursor = 'pointer';
+            } else {
+                mergeBtn.style.background = '#6c757d';
+                mergeBtn.style.cursor = 'not-allowed';
+            }
+        }
+
+        // 清除选择
+        function clearSelection() {
+            selectedSentences.clear();
+            document.querySelectorAll('.sentence-item.selected').forEach(item => {
+                item.classList.remove('selected');
+            });
+            updateSelectedCount();
+            showSuccess('已清除所有选择');
+        }
+
+        // 切换文本编辑状态
+        function toggleTextEdit(index, event) {
+            event.stopPropagation(); // 阻止事件冒泡
+            
+            const textElement = document.getElementById(`sentence-text-${index}`);
+            const inputElement = document.getElementById(`sentence-edit-${index}`);
+            const editBtn = event.target;
+            
+            if (textElement.style.display !== 'none') {
+                // 进入编辑状态
+                textElement.style.display = 'none';
+                inputElement.style.display = 'block';
+                inputElement.focus();
+                editBtn.textContent = '💾 保存';
+                editBtn.style.background = '#007bff';
+            } else {
+                // 保存编辑结果
+                const newText = inputElement.value.trim();
+                if (newText === '') {
+                    showError('文本内容不能为空');
+                    return;
+                }
+                
+                // 更新当前结果中的文本
+                if (currentResult && currentResult.sentences[index]) {
+                    currentResult.sentences[index].text = newText;
+                    textElement.textContent = newText;
+                    
+                    // 重新生成完整文本
+                    currentResult.text = currentResult.sentences.map(s => s.text).join(' ');
+                    document.getElementById('fullText').textContent = currentResult.text;
+                    
+                    // 更新字符数统计
+                    document.getElementById('wordCount').textContent = currentResult.text.length;
+                    
+                    // 自动同步更新JSON文件
+                    autoSyncResult();
+                }
+                
+                // 退出编辑状态
+                textElement.style.display = 'block';
+                inputElement.style.display = 'none';
+                editBtn.textContent = '✏️ 编辑';
+                editBtn.style.background = '#28a745';
+                
+                showSuccess('文本已保存并同步更新');
+            }
+        }
+
+        // 合并选中的分句
+        function mergeSelectedSentences() {
+            if (selectedSentences.size < 2) {
+                showError('请至少选择2个分句进行合并');
+                return;
+            }
+            
+            if (!currentResult || !currentResult.sentences) {
+                showError('没有可用的识别结果');
+                return;
+            }
+            
+            // 将选中的索引转换为数组并排序
+            const selectedIndices = Array.from(selectedSentences).sort((a, b) => a - b);
+            
+            // 检查选中的分句是否连续
+            let isConsecutive = true;
+            for (let i = 1; i < selectedIndices.length; i++) {
+                if (selectedIndices[i] !== selectedIndices[i-1] + 1) {
+                    isConsecutive = false;
+                    break;
+                }
+            }
+            
+            if (!isConsecutive) {
+                if (!confirm('选中的分句不连续，合并后可能影响时间轴的连贯性。是否继续？')) {
+                    return;
+                }
+            }
+            
+            // 获取要合并的分句
+            const sentencesToMerge = selectedIndices.map(index => currentResult.sentences[index]);
+            
+            // 创建合并后的分句
+            const mergedSentence = {
+                start: Math.min(...sentencesToMerge.map(s => s.start)),
+                end: Math.max(...sentencesToMerge.map(s => s.end)),
+                text: sentencesToMerge.map(s => s.text).join(' '),
+                speaker: sentencesToMerge[0].speaker // 使用第一个分句的说话人
+            };
+            
+            // 检查是否有不同的说话人
+            const speakers = [...new Set(sentencesToMerge.map(s => s.speaker))];
+            if (speakers.length > 1) {
+                const speakerList = speakers.join(', ');
+                if (!confirm(`选中的分句包含不同的说话人（${speakerList}），合并后将使用第一个说话人（${speakers[0]}）。是否继续？`)) {
+                    return;
+                }
+            }
+            
+            // 创建新的分句数组
+            const newSentences = [];
+            let mergedAdded = false;
+            
+            for (let i = 0; i < currentResult.sentences.length; i++) {
+                if (selectedIndices.includes(i)) {
+                    // 如果是第一个选中的分句，添加合并后的分句
+                    if (i === selectedIndices[0] && !mergedAdded) {
+                        newSentences.push(mergedSentence);
+                        mergedAdded = true;
+                    }
+                    // 跳过其他选中的分句
+                } else {
+                    // 保留未选中的分句
+                    newSentences.push(currentResult.sentences[i]);
+                }
+            }
+            
+            // 更新当前结果
+            currentResult.sentences = newSentences;
+            
+            // 重新生成完整文本
+            currentResult.text = newSentences.map(s => s.text).join(' ');
+            
+            // 更新说话人列表
+            currentResult.speakers = [...new Set(newSentences.map(s => s.speaker))];
+            
+            // 自动同步更新JSON文件
+            autoSyncResult();
+            
+            // 重新显示结果
+            displayResults(currentResult);
+            
+            // 退出编辑模式
+            toggleEditMode();
+            
+            showSuccess(`成功合并了 ${selectedIndices.length} 个分句并同步更新！`);
         }
 
         // 点击模态框外部关闭
