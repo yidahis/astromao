@@ -481,6 +481,20 @@
         let importedJsonData = null;
         let selectedAudioForJson = null;
         
+        // 将秒数转换为时分秒格式
+        function formatTimeToHMS(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            const millisecs = Math.floor((seconds % 1) * 100);
+            
+            if (hours > 0) {
+                return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${millisecs.toString().padStart(2, '0')}`;
+            } else {
+                return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${millisecs.toString().padStart(2, '0')}`;
+            }
+        }
+        
         // 确保DOM加载完成
         document.addEventListener('DOMContentLoaded', function() {
             console.log('DOM已加载完成');
@@ -656,7 +670,7 @@
                 sentenceDiv.innerHTML = `
                     <div class="sentence-header">
                         <span class="speaker-tag" style="background: ${speakerColor}">${sentence.speaker}</span>
-                        <span class="timestamp">🎵 ${sentence.start}s - ${sentence.end}s (点击播放)</span>
+                        <span class="timestamp">🎵 ${formatTimeToHMS(sentence.start)} - ${formatTimeToHMS(sentence.end)} (点击播放)</span>
                         <button class="edit-text-btn" onclick="toggleTextEdit(${index}, event)" style="display: none; background: #28a745; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 12px; margin-left: 10px;">✏️ 编辑</button>
                     </div>
                     <div class="sentence-text" id="sentence-text-${index}">${sentence.text}</div>

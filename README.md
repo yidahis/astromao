@@ -30,22 +30,57 @@
   - 标点: CT-Transformer (标点恢复)
   - 说话人分离: CAM++ (说话人分离)
 
-## 安装依赖
+## 🚀 快速开始
+
+### 方法一：一键启动（推荐）
 
 ```bash
-pip install funasr fastapi uvicorn aiofiles ffmpeg-python
+# 克隆项目
+git clone https://github.com/yidahis/astromao.git
+cd astromao
+
+# 一键启动（自动安装依赖和下载模型）
+./start.sh
 ```
 
-## 使用方法
+### 方法二：手动安装
 
-1. 启动服务:
+1. **安装依赖**:
+```bash
+pip install -r requirements.txt
+```
+
+2. **下载模型**（首次使用需要）:
+```bash
+python download_models.py
+```
+
+3. **启动服务**:
 ```bash
 python app.py
 ```
 
-2. 打开浏览器访问: http://localhost:8001
+4. **访问应用**: 打开浏览器访问 http://localhost:8001
 
-3. 上传音频文件进行识别
+## 📦 模型管理
+
+本项目支持本地模型缓存，避免每次启动时重新下载：
+
+- **自动下载**: 首次运行会自动下载所需模型到 `models/` 文件夹
+- **离线使用**: 模型下载后可完全离线使用
+- **快速启动**: 避免重复下载，大幅提升启动速度
+
+### 模型文件结构
+```
+models/
+├── speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch/  # ASR模型（支持时间戳）
+├── speech_fsmn_vad_zh-cn-16k-common-pytorch/                                      # VAD模型
+├── punc_ct-transformer_zh-cn-common-vocab272727-pytorch/                          # 标点模型
+├── speech_campplus_sv_zh-cn_16k-common/                                           # 说话人识别模型
+└── speech_diarization_sond-zh-cn-alimeeting-16k-n16k4-pytorch/                   # 语音分离模型
+```
+
+详细说明请参考 [MODEL_SETUP.md](MODEL_SETUP.md)
 
 ## 📖 使用说明
 

@@ -6,6 +6,7 @@
 import argparse
 import logging
 import os
+import sys
 import uuid
 import json
 import hashlib
@@ -33,31 +34,31 @@ parser.add_argument("--port", type=int, default=8001, required=False, help="serv
 parser.add_argument(
     "--asr_model",
     type=str,
-    default="iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+    default="models/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
     help="ASR model supporting Chinese and English with timestamp",
 )
 parser.add_argument(
     "--vad_model",
     type=str,
-    default="iic/speech_fsmn_vad_zh-cn-16k-common-pytorch",
+    default="models/speech_fsmn_vad_zh-cn-16k-common-pytorch",
     help="VAD model for voice activity detection",
 )
 parser.add_argument(
     "--punc_model",
     type=str,
-    default="iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch",
+    default="models/punc_ct-transformer_zh-cn-common-vocab272727-pytorch",
     help="Punctuation model",
 )
 parser.add_argument(
     "--spk_model",
     type=str,
-    default="iic/speech_campplus_sv_zh-cn_16k-common",
+    default="models/speech_campplus_sv_zh-cn_16k-common",
     help="Speaker verification model",
 )
 parser.add_argument(
     "--sd_model",
     type=str,
-    default="iic/speech_diarization_sond-zh-cn-alimeeting-16k-n16k4-pytorch",
+    default="models/speech_diarization_sond-zh-cn-alimeeting-16k-n16k4-pytorch",
     help="Speaker diarization model",
 )
 parser.add_argument("--device", type=str, default="cpu", help="cuda, cpu")
@@ -74,6 +75,32 @@ os.makedirs(args.temp_dir, exist_ok=True)
 os.makedirs("static", exist_ok=True)
 os.makedirs("results", exist_ok=True)  # 创建结果存储目录
 
+# 检查本地模型是否存在
+def check_local_models():
+    """检查本地模型文件是否存在"""
+    models_to_check = [
+        args.asr_model,
+        args.vad_model,
+        args.punc_model,
+        args.spk_model,
+        args.sd_model
+    ]
+    
+    missing_models = []
+    for model_path in models_to_check:
+        if not os.path.exists(model_path):
+            missing_models.append(model_path)
+    
+    if missing_models:
+        logger.error("以下模型文件不存在:")
+        for model in missing_models:
+            logger.error(f"  - {model}")
+        logger.error("请先运行 'python download_models.py' 下载模型")
+        sys.exit(1)
+    
+    logger.info("本地模型检查通过")
+
+check_local_models()
 logger.info("Loading models...")
 # Load FunASR models
 try:
@@ -87,6 +114,7 @@ try:
         ncpu=args.ncpu,
         disable_pbar=True,
         disable_log=True,
+        disable_update=True,
     )
     logger.info("Models loaded successfully!")
 except Exception as e:
@@ -100,6 +128,7 @@ except Exception as e:
         ncpu=args.ncpu,
         disable_pbar=True,
         disable_log=True,
+        disable_update=True,
     )
     logger.info("Basic models loaded (without speaker features)!")
 
