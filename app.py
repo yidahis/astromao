@@ -12,6 +12,7 @@ import json
 import hashlib
 import datetime
 from typing import List, Dict, Any
+import re
 
 import aiofiles
 import ffmpeg
@@ -20,6 +21,8 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from modelscope.utils.logger import get_logger
+from transformers import MarianMTModel, MarianTokenizer
+import torch
 
 from funasr import AutoModel
 
@@ -132,6 +135,113 @@ except Exception as e:
     )
     logger.info("Basic models loaded (without speaker features)!")
 
+# Initialize local translation models
+class LocalTranslator:
+    def __init__(self):
+        self.zh_to_en_model = None
+        self.zh_to_en_tokenizer = None
+        self.en_to_zh_model = None
+        self.en_to_zh_tokenizer = None
+        self.load_models()
+    
+    def load_models(self):
+        """加载本地翻译模型"""
+        try:
+            # 中文到英文模型
+            zh_en_model_name = "Helsinki-NLP/opus-mt-zh-en"
+            self.zh_to_en_tokenizer = MarianTokenizer.from_pretrained(zh_en_model_name)
+            self.zh_to_en_model = MarianMTModel.from_pretrained(zh_en_model_name)
+            
+            # 英文到中文模型
+            en_zh_model_name = "Helsinki-NLP/opus-mt-en-zh"
+            self.en_to_zh_tokenizer = MarianTokenizer.from_pretrained(en_zh_model_name)
+            self.en_to_zh_model = MarianMTModel.from_pretrained(en_zh_model_name)
+            
+            logger.info("Local translation models loaded successfully!")
+        except Exception as e:
+            logger.error(f"Failed to load translation models: {e}")
+            logger.warning("Translation functionality will be disabled")
+    
+    def translate(self, text: str, source_lang: str, target_lang: str) -> str:
+        """执行翻译"""
+        if not text.strip():
+            return text
+        
+        try:
+            if source_lang == 'zh' and target_lang == 'en':
+                if self.zh_to_en_model is None:
+                    return text
+                tokenizer = self.zh_to_en_tokenizer
+                model = self.zh_to_en_model
+            elif source_lang == 'en' and target_lang == 'zh':
+                if self.en_to_zh_model is None:
+                    return text
+                tokenizer = self.en_to_zh_tokenizer
+                model = self.en_to_zh_model
+            else:
+                return text
+            
+            # 编码输入文本
+            inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512)
+            
+            # 生成翻译
+            with torch.no_grad():
+                outputs = model.generate(**inputs, max_length=512, num_beams=4, early_stopping=True)
+            
+            # 解码输出
+            translated = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            return translated
+            
+        except Exception as e:
+            logger.warning(f"Translation failed: {e}")
+            return text
+
+# 初始化翻译器
+translator = LocalTranslator()
+
+# Translation functions
+def detect_language(text: str) -> str:
+    """检测文本语言"""
+    try:
+        # 简单的中文检测
+        chinese_chars = re.findall(r'[\u4e00-\u9fff]', text)
+        if len(chinese_chars) > len(text) * 0.3:  # 如果中文字符超过30%
+            return 'zh'
+        else:
+            return 'en'
+    except:
+        return 'auto'
+
+def translate_text(text: str, target_lang: str = None) -> Dict[str, str]:
+    """翻译文本"""
+    if not text.strip():
+        return {"original": text, "translated": text, "source_lang": "unknown", "target_lang": target_lang or "unknown"}
+    
+    try:
+        # 检测源语言
+        source_lang = detect_language(text)
+        
+        # 如果没有指定目标语言，自动选择
+        if not target_lang:
+            target_lang = 'en' if source_lang == 'zh' else 'zh'
+        
+        # 如果源语言和目标语言相同，不需要翻译
+        if source_lang == target_lang:
+            return {"original": text, "translated": text, "source_lang": source_lang, "target_lang": target_lang}
+        
+        # 执行翻译
+        translated_text = translator.translate(text, source_lang, target_lang)
+        
+        return {
+            "original": text,
+            "translated": translated_text,
+            "source_lang": source_lang,
+            "target_lang": target_lang
+        }
+    except Exception as e:
+        logger.warning(f"Translation failed: {e}")
+        return {"original": text, "translated": text, "source_lang": "unknown", "target_lang": target_lang or "unknown"}
+
 app = FastAPI(title="AstroMao - 离线语音识别Web应用")
 
 # Mount static files
@@ -237,19 +347,36 @@ async def recognize_audio(audio: UploadFile = File(..., description="Audio file 
                 speaker_id = sentence.get("spk", f"Speaker_{i % 2 + 1}")
                 speakers.add(speaker_id)
                 
+                # 翻译句子
+                translation_zh = translate_text(sentence_text, 'zh')
+                translation_en = translate_text(sentence_text, 'en')
+                
                 sentences.append({
                     "text": sentence_text,
                     "start": round(start_time, 2),
                     "end": round(end_time, 2),
-                    "speaker": speaker_id
+                    "speaker": speaker_id,
+                    "translation": {
+                        "zh": translation_zh["translated"],
+                        "en": translation_en["translated"],
+                        "source_lang": translation_zh["source_lang"]
+                    }
                 })
         else:
             # Fallback: create single sentence from full text
+            translation_zh = translate_text(text, 'zh')
+            translation_en = translate_text(text, 'en')
+            
             sentences.append({
                 "text": text,
                 "start": 0.0,
                 "end": 0.0,
-                "speaker": "Speaker_1"
+                "speaker": "Speaker_1",
+                "translation": {
+                    "zh": translation_zh["translated"],
+                    "en": translation_en["translated"],
+                    "source_lang": translation_zh["source_lang"]
+                }
             })
             speakers.add("Speaker_1")
         

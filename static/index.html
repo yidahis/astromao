@@ -433,7 +433,10 @@
                     <div class="sentences-header">
                         <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #f8f9fa; border-bottom: 1px solid #eee;">
                             <h4 style="margin: 0;">🎯 分句结果</h4>
-                            <button id="editModeBtn" onclick="toggleEditMode()" style="background: #fd79a8; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; display: inline-block; font-size: 14px; line-height: 1.4; text-align: center; vertical-align: middle; -webkit-appearance: none; -moz-appearance: none; appearance: none;">✏️ 编辑模式</button>
+                            <div style="display: flex; gap: 10px;">
+                                <button id="bilingualModeBtn" onclick="toggleBilingualMode()" style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; display: inline-block; font-size: 14px; line-height: 1.4; text-align: center; vertical-align: middle; -webkit-appearance: none; -moz-appearance: none; appearance: none;" title="双语模式">🌐 双语模式</button>
+                                <button id="editModeBtn" onclick="toggleEditMode()" style="background: #fd79a8; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; display: inline-block; font-size: 14px; line-height: 1.4; text-align: center; vertical-align: middle; -webkit-appearance: none; -moz-appearance: none; appearance: none;">✏️ 编辑模式</button>
+                            </div>
                         </div>
                         <div id="editControlPanel" style="display: none; padding: 10px 20px; background: #f1f3f5; border-bottom: 1px solid #eee;">
                             <span id="selectedCount" style="margin-right: 15px; font-weight: bold;">已选择: 0</span>
@@ -501,8 +504,10 @@
             // 检查关键元素是否存在
             const editModeBtn = document.getElementById('editModeBtn');
             const editControlPanel = document.getElementById('editControlPanel');
+            const bilingualModeBtn = document.getElementById('bilingualModeBtn');
             console.log('编辑模式按钮:', editModeBtn);
             console.log('编辑控制面板:', editControlPanel);
+            console.log('双语模式按钮:', bilingualModeBtn);
         });
 
         // File input change event
@@ -636,6 +641,7 @@
         let audioPlayer = null; // 音频播放器引用
         let currentAudioFile = null; // 当前音频文件
         let isEditMode = false; // 编辑模式状态
+        let isBilingualMode = true; // 双语模式状态，默认开启
         let selectedSentences = new Set(); // 选中的分句索引
 
         function displayResults(result) {
@@ -667,6 +673,27 @@
                 const speakerColors = ['#4facfe', '#00f2fe', '#667eea', '#764ba2', '#f093fb', '#f5576c'];
                 const speakerColor = speakerColors[index % speakerColors.length];
                 
+                // 构建翻译显示内容
+                let translationHtml = '';
+                if (sentence.translation) {
+                    const sourceFlag = sentence.translation.source_lang === 'zh' ? '🇨🇳' : '🇺🇸';
+                    const targetFlag = sentence.translation.source_lang === 'zh' ? '🇺🇸' : '🇨🇳';
+                    
+                    const displayStyle = isBilingualMode ? 'block' : 'none';
+                    translationHtml = `
+                        <div class="translation-content translation-section" style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 8px; border-left: 3px solid #4facfe; display: ${displayStyle};">
+                            <div class="translation-item" style="margin-bottom: 8px;">
+                                <span style="font-weight: bold; color: #666; font-size: 12px;">${sourceFlag} 原文:</span>
+                                <div style="margin-top: 3px; color: #333;">${sentence.text}</div>
+                            </div>
+                            <div class="translation-item">
+                                <span style="font-weight: bold; color: #666; font-size: 12px;">${targetFlag} 翻译:</span>
+                                <div style="margin-top: 3px; color: #555; font-style: italic;">${sentence.translation.source_lang === 'zh' ? sentence.translation.en : sentence.translation.zh}</div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
                 sentenceDiv.innerHTML = `
                     <div class="sentence-header">
                         <span class="speaker-tag" style="background: ${speakerColor}">${sentence.speaker}</span>
@@ -675,6 +702,7 @@
                     </div>
                     <div class="sentence-text" id="sentence-text-${index}">${sentence.text}</div>
                     <textarea class="sentence-edit-input" id="sentence-edit-${index}" style="display: none; width: 100%; min-height: 60px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; resize: vertical;">${sentence.text}</textarea>
+                    ${translationHtml}
                 `;
                 
                 // 添加点击事件监听器
@@ -1328,6 +1356,43 @@
                 updateSelectedCount();
                 
                 showSuccess('已退出编辑模式');
+            }
+        }
+
+        // 切换双语模式
+        function toggleBilingualMode() {
+            isBilingualMode = !isBilingualMode;
+            const bilingualModeBtn = document.getElementById('bilingualModeBtn');
+            
+            if (!bilingualModeBtn) {
+                console.error('双语模式按钮未找到');
+                return;
+            }
+            
+            if (isBilingualMode) {
+                // 开启双语模式
+                bilingualModeBtn.textContent = '🌐 双语模式';
+                bilingualModeBtn.style.background = '#28a745';
+                bilingualModeBtn.title = '双语模式';
+                
+                // 显示所有翻译内容
+                document.querySelectorAll('.translation-content').forEach(element => {
+                    element.style.display = 'block';
+                });
+                
+                showSuccess('已开启双语模式，显示翻译内容');
+            } else {
+                // 关闭双语模式
+                bilingualModeBtn.textContent = '🔤 单语模式';
+                bilingualModeBtn.style.background = '#6c757d';
+                bilingualModeBtn.title = '单语模式';
+                
+                // 隐藏所有翻译内容
+                document.querySelectorAll('.translation-content').forEach(element => {
+                    element.style.display = 'none';
+                });
+                
+                showSuccess('已关闭双语模式，隐藏翻译内容');
             }
         }
 
