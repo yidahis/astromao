@@ -147,17 +147,28 @@ class LocalTranslator:
     def load_models(self):
         """加载本地翻译模型"""
         try:
-            # 中文到英文模型
-            zh_en_model_name = "Helsinki-NLP/opus-mt-zh-en"
-            self.zh_to_en_tokenizer = MarianTokenizer.from_pretrained(zh_en_model_name)
-            self.zh_to_en_model = MarianMTModel.from_pretrained(zh_en_model_name)
+            # 获取当前脚本目录
+            current_dir = os.path.dirname(os.path.abspath(__file__))
             
-            # 英文到中文模型
-            en_zh_model_name = "Helsinki-NLP/opus-mt-en-zh"
-            self.en_to_zh_tokenizer = MarianTokenizer.from_pretrained(en_zh_model_name)
-            self.en_to_zh_model = MarianMTModel.from_pretrained(en_zh_model_name)
+            # 中文到英文模型路径
+            zh_en_model_path = os.path.join(current_dir, "models", "translation", "opus-mt-zh-en")
+            if os.path.exists(zh_en_model_path):
+                self.zh_to_en_tokenizer = MarianTokenizer.from_pretrained(zh_en_model_path)
+                self.zh_to_en_model = MarianMTModel.from_pretrained(zh_en_model_path)
+                logger.info(f"Loaded zh-en model from: {zh_en_model_path}")
+            else:
+                logger.warning(f"zh-en model not found at: {zh_en_model_path}")
             
-            logger.info("Local translation models loaded successfully!")
+            # 英文到中文模型路径
+            en_zh_model_path = os.path.join(current_dir, "models", "translation", "opus-mt-en-zh")
+            if os.path.exists(en_zh_model_path):
+                self.en_to_zh_tokenizer = MarianTokenizer.from_pretrained(en_zh_model_path)
+                self.en_to_zh_model = MarianMTModel.from_pretrained(en_zh_model_path)
+                logger.info(f"Loaded en-zh model from: {en_zh_model_path}")
+            else:
+                logger.warning(f"en-zh model not found at: {en_zh_model_path}")
+            
+            logger.info("Local translation models loaded successfully from models folder!")
         except Exception as e:
             logger.error(f"Failed to load translation models: {e}")
             logger.warning("Translation functionality will be disabled")
@@ -647,6 +658,42 @@ async def delete_result(result_id: str):
         logger.error(f"Failed to delete result: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete result: {str(e)}")
 
+
+@app.post("/api/translate")
+async def translate_api(request: dict):
+    """翻译API端点"""
+    try:
+        text = request.get('text', '')
+        target_lang = request.get('target_lang', 'auto')
+        
+        if not text.strip():
+            return {"success": False, "error": "文本不能为空"}
+        
+        # 执行翻译
+        if target_lang == 'auto':
+            # 自动检测并翻译为两种语言
+            translation_zh = translate_text(text, 'zh')
+            translation_en = translate_text(text, 'en')
+            
+            return {
+                "success": True,
+                "translation": {
+                    "zh": translation_zh["translated"],
+                    "en": translation_en["translated"],
+                    "source_lang": translation_zh["source_lang"]
+                }
+            }
+        else:
+            # 翻译为指定语言
+            result = translate_text(text, target_lang)
+            return {
+                "success": True,
+                "translation": result
+            }
+            
+    except Exception as e:
+        logger.error(f"Translation API error: {e}")
+        return {"success": False, "error": str(e)}
 
 if __name__ == "__main__":
     uvicorn.run(app, host=args.host, port=args.port)

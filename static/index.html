@@ -441,6 +441,7 @@
                         <div id="editControlPanel" style="display: none; padding: 10px 20px; background: #f1f3f5; border-bottom: 1px solid #eee;">
                             <span id="selectedCount" style="margin-right: 15px; font-weight: bold;">已选择: 0</span>
                             <button id="mergeBtn" onclick="mergeSelectedSentences()" style="background: #20c997; color: white; border: none; padding: 5px 15px; border-radius: 5px; margin-right: 10px; cursor: pointer; opacity: 0.6;" disabled>🔄 合并选中</button>
+                            <button id="mergeAndTranslateBtn" onclick="mergeAndTranslateSentences()" style="background: #fd79a8; color: white; border: none; padding: 5px 15px; border-radius: 5px; margin-right: 10px; cursor: pointer; opacity: 0.6;" disabled>🔄🌐 合并并翻译</button>
                             <button onclick="clearSelection()" style="background: #868e96; color: white; border: none; padding: 5px 15px; border-radius: 5px; cursor: pointer;">❌ 清除选择</button>
                         </div>
                     </div>
@@ -1415,14 +1416,21 @@
             document.getElementById('selectedCount').textContent = count;
             
             const mergeBtn = document.getElementById('mergeBtn');
+            const mergeAndTranslateBtn = document.getElementById('mergeAndTranslateBtn');
             mergeBtn.disabled = count < 2;
-            
+            mergeAndTranslateBtn.disabled = count < 2;
             if (count >= 2) {
                 mergeBtn.style.background = '#28a745';
                 mergeBtn.style.cursor = 'pointer';
+                mergeAndTranslateBtn.style.background = '#fd79a8';
+                mergeAndTranslateBtn.style.cursor = 'pointer';
+                mergeAndTranslateBtn.style.opacity = '1';
             } else {
                 mergeBtn.style.background = '#6c757d';
                 mergeBtn.style.cursor = 'not-allowed';
+                mergeAndTranslateBtn.style.background = '#6c757d';
+                mergeAndTranslateBtn.style.cursor = 'not-allowed';
+                mergeAndTranslateBtn.style.opacity = '0.6';
             }
         }
 
@@ -1482,6 +1490,143 @@
                 editBtn.style.background = '#28a745';
                 
                 showSuccess('文本已保存并同步更新');
+            }
+        }
+
+        // 调用翻译API
+        async function translateText(text) {
+            console.log('translateText函数被调用，输入文本:', text);
+            try {
+                console.log('发送翻译请求到 /api/translate');
+                const response = await fetch('/api/translate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        target_lang: 'auto'
+                    })
+                });
+                console.log('收到响应，状态:', response.status);
+                
+                const result = await response.json();
+                console.log('解析后的响应结果:', result);
+                
+                if (result.success) {
+                    console.log('翻译成功，返回翻译结果:', result.translation);
+                    return result.translation;
+                } else {
+                    console.error('翻译失败，错误信息:', result.error);
+                    throw new Error(result.error || '翻译失败');
+                }
+            } catch (error) {
+                console.error('翻译API调用失败，错误详情:', error);
+                console.error('错误类型:', error.name);
+                console.error('错误消息:', error.message);
+                if (error.stack) {
+                    console.error('错误堆栈:', error.stack);
+                }
+                throw error;
+            }
+        }
+
+        // 合并选中的分句并重新翻译
+        async function mergeAndTranslateSentences() {
+            console.log('mergeAndTranslateSentences 函数被调用');
+            if (selectedSentences.size < 2) {
+                showError('请至少选择2个分句进行合并');
+                return;
+            }
+            
+            // 将选中的索引转换为数组并排序
+            const selectedIndices = Array.from(selectedSentences).sort((a, b) => a - b);
+            
+            // 检查选中的分句是否连续
+            let isConsecutive = true;
+            for (let i = 1; i < selectedIndices.length; i++) {
+                if (selectedIndices[i] !== selectedIndices[i-1] + 1) {
+                    isConsecutive = false;
+                    break;
+                }
+            }
+            
+            if (!isConsecutive) {
+                if (!confirm('选中的分句不连续，合并后可能影响时间轴的连贯性。是否继续？')) {
+                    return;
+                }
+            }
+            
+            // 获取要合并的分句
+            const sentencesToMerge = selectedIndices.map(index => currentResult.sentences[index]);
+            
+            // 检查说话人是否一致
+            const speakers = [...new Set(sentencesToMerge.map(s => s.speaker))];
+            if (speakers.length > 1) {
+                const speakerList = speakers.join(', ');
+                if (!confirm(`选中的分句包含不同的说话人（${speakerList}），合并后将使用第一个说话人（${speakers[0]}）。是否继续？`)) {
+                    return;
+                }
+            }
+            
+            // 合并文本
+            const mergedText = sentencesToMerge.map(s => s.text).join(' ');
+            
+            try {
+                // 显示翻译进度
+                showSuccess('正在重新翻译合并后的文本...');
+                
+                // 调用翻译API
+                console.log('开始调用翻译API，文本:', mergedText);
+                const translation = await translateText(mergedText);
+                console.log('翻译API返回结果:', translation);
+                
+                // 创建合并后的分句（包含新的翻译）
+                const mergedSentence = {
+                    start: sentencesToMerge[0].start,
+                    end: sentencesToMerge[sentencesToMerge.length - 1].end,
+                    text: mergedText,
+                    speaker: sentencesToMerge[0].speaker,
+                    translation: translation
+                };
+                
+                // 创建新的分句数组
+                const newSentences = [];
+                let mergedAdded = false;
+                
+                for (let i = 0; i < currentResult.sentences.length; i++) {
+                    if (selectedIndices.includes(i)) {
+                        // 如果是第一个选中的分句，添加合并后的分句
+                        if (i === selectedIndices[0] && !mergedAdded) {
+                            newSentences.push(mergedSentence);
+                            mergedAdded = true;
+                        }
+                        // 跳过其他选中的分句
+                    } else {
+                        newSentences.push(currentResult.sentences[i]);
+                    }
+                }
+                
+                // 更新结果
+                currentResult.sentences = newSentences;
+                currentResult.text = newSentences.map(s => s.text).join(' ');
+                
+                // 重新显示结果
+                displayResults(currentResult);
+                
+                // 退出编辑模式
+                toggleEditMode();
+                
+                // 自动同步更新JSON文件
+                autoSyncResult();
+                
+                // 清除选择状态
+                clearSelection();
+                
+                showSuccess(`成功合并了 ${selectedIndices.length} 个分句并重新翻译！`);
+                
+            } catch (error) {
+                showError('翻译失败: ' + error.message);
             }
         }
 
@@ -1570,6 +1715,9 @@
             
             // 退出编辑模式
             toggleEditMode();
+            
+            // 清除选择状态
+            clearSelection();
             
             showSuccess(`成功合并了 ${selectedIndices.length} 个分句并同步更新！`);
         }
