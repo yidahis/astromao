@@ -360,7 +360,7 @@
         <div class="main-content">
             <div class="upload-section" id="uploadSection">
                 <h3>📁 上传音频文件或导入识别结果</h3>
-                <p>拖拽音频文件到此处或点击按钮选择文件，也可以导入之前保存的JSON结果文件</p>
+                <p>拖拽音频文件到此处或点击按钮选择文件，支持多种格式并自动转换为MP3，也可以导入之前保存的JSON结果文件</p>
                 <input type="file" id="fileInput" class="file-input" accept=".wav,.mp3,.m4a,.flac,.aac,.ogg">
                 <input type="file" id="jsonInput" class="file-input" accept=".json">
                 <input type="file" id="audioForJsonInput" class="file-input" accept=".wav,.mp3,.m4a,.flac,.aac,.ogg" style="display: none;">
@@ -377,7 +377,7 @@
                 </div>
 
                 <div class="supported-formats">
-                    音频格式: WAV, MP3, M4A, FLAC, AAC, OGG | 结果格式: JSON
+                    音频格式: WAV, MP3, M4A, FLAC, AAC, OGG（自动转换为MP3） | 结果格式: JSON
                 </div>
             </div>
 
@@ -578,28 +578,63 @@
                 return;
             }
 
-            const formData = new FormData();
-            formData.append('audio', selectedFile);
-
             // Show progress
             progressContainer.style.display = 'block';
             recognizeBtn.disabled = true;
-            recognizeBtn.innerHTML = '<span class="loading"></span>识别中...';
+            recognizeBtn.innerHTML = '<span class="loading"></span>转换并识别中...';
             hideMessages();
             resultsSection.style.display = 'none';
 
             // Simulate progress
             let progress = 0;
             const progressInterval = setInterval(() => {
-                progress += Math.random() * 15;
-                if (progress > 90) progress = 90;
+                progress += Math.random() * 10;
+                if (progress > 85) progress = 85;
                 progressFill.style.width = progress + '%';
             }, 200);
 
             try {
+                let audioFileToRecognize = selectedFile;
+                
+                // Step 1: Convert audio to MP3 if not already MP3
+                const fileExtension = selectedFile.name.split('.').pop().toLowerCase();
+                if (fileExtension !== 'mp3') {
+                    console.log(`Converting ${selectedFile.name} from ${fileExtension} to MP3...`);
+                    
+                    const convertFormData = new FormData();
+                    convertFormData.append('audio', selectedFile);
+                    
+                    const convertResponse = await fetch('/api/convert_to_mp3', {
+                        method: 'POST',
+                        body: convertFormData
+                    });
+                    
+                    if (!convertResponse.ok) {
+                        throw new Error('音频转换失败');
+                    }
+                    
+                    // Get the converted MP3 file as blob
+                    const mp3Blob = await convertResponse.blob();
+                    const originalName = selectedFile.name.split('.').slice(0, -1).join('.');
+                    audioFileToRecognize = new File([mp3Blob], `${originalName}.mp3`, { type: 'audio/mpeg' });
+                    
+                    console.log('Audio converted to MP3 successfully');
+                    showSuccess('音频已转换为MP3格式，开始识别...');
+                    
+                    // Update progress
+                    progress = 30;
+                    progressFill.style.width = progress + '%';
+                } else {
+                    console.log('Audio is already in MP3 format, proceeding with recognition...');
+                }
+                
+                // Step 2: Perform recognition with the MP3 file
+                const recognizeFormData = new FormData();
+                recognizeFormData.append('audio', audioFileToRecognize);
+                
                 const response = await fetch('/api/recognize', {
                     method: 'POST',
-                    body: formData
+                    body: recognizeFormData
                 });
 
                 const result = await response.json();
@@ -616,13 +651,14 @@
                     if (result.success) {
                         displayResults(result);
                         
-                        // 识别完成后自动保存音频文件到results文件夹
-                        if (selectedFile && result.result_id) {
-                            console.log('识别完成，开始保存音频文件到results文件夹...');
-                            uploadAudioForResult(selectedFile, result.result_id);
+                        // 识别完成后自动保存音频文件到results文件夹（保存转换后的MP3文件）
+                        if (audioFileToRecognize && result.result_id) {
+                            console.log('识别完成，开始保存MP3音频文件到results文件夹...');
+                            uploadAudioForResult(audioFileToRecognize, result.result_id);
                         }
                         
-                        showSuccess('识别完成！');
+                        const conversionMsg = fileExtension !== 'mp3' ? '（已转换为MP3格式）' : '';
+                        showSuccess(`识别完成！${conversionMsg}`);
                     } else {
                         showError(result.message || '识别失败');
                     }
@@ -634,7 +670,7 @@
                 progressFill.style.width = '0%';
                 recognizeBtn.disabled = false;
                 recognizeBtn.innerHTML = '开始识别';
-                showError('网络错误: ' + error.message);
+                showError('处理错误: ' + error.message);
             }
         }
 

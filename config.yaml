@@ -3,7 +3,7 @@
 
 # 服务器配置
 server:
-  host: "0.0.0.0"
+  host: "localhost"
   port: 8001
   temp_dir: "temp_dir/"
   max_file_size: 100  # MB

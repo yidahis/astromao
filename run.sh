@@ -61,7 +61,7 @@ mkdir -p temp_dir
 mkdir -p static
 
 # 设置默认参数
-HOST=${HOST:-"0.0.0.0"}
+HOST=${HOST:-"localhost"}
 PORT=${PORT:-8001}
 DEVICE=${DEVICE:-"cpu"}
 

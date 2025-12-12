@@ -11,7 +11,7 @@ services:
       - ./logs:/app/logs
     environment:
       - PYTHONUNBUFFERED=1
-      - HOST=0.0.0.0
+      - HOST=localhost
       - PORT=8001
       - DEVICE=cpu
     restart: unless-stopped

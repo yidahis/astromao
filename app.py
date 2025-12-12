@@ -31,7 +31,7 @@ logger.setLevel(logging.INFO)
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "--host", type=str, default="0.0.0.0", required=False, help="host ip, localhost, 0.0.0.0"
+    "--host", type=str, default="0.0.0.0", required=False, help="host ip, 0.0.0.0 to accept all connections"
 )
 parser.add_argument("--port", type=int, default=8001, required=False, help="server port")
 parser.add_argument(
@@ -263,6 +263,66 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 async def read_root():
     """返回主页面"""
     return FileResponse("static/index.html")
+
+
+@app.post("/api/convert_to_mp3")
+async def convert_audio_to_mp3(audio: UploadFile = File(..., description="Audio file to convert to MP3")):
+    """音频转换为MP3格式API"""
+    if not audio.filename:
+        raise HTTPException(status_code=400, detail="No file uploaded")
+    
+    # Check file format
+    allowed_formats = ["wav", "mp3", "m4a", "flac", "aac", "ogg"]
+    suffix = audio.filename.split(".")[-1].lower()
+    if suffix not in allowed_formats:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unsupported file format. Supported formats: {', '.join(allowed_formats)}"
+        )
+    
+    # Generate unique file names
+    file_id = str(uuid.uuid1())
+    input_path = f"{args.temp_dir}/{file_id}.{suffix}"
+    output_path = f"{args.temp_dir}/{file_id}.mp3"
+    
+    try:
+        # Save uploaded file
+        async with aiofiles.open(input_path, "wb") as out_file:
+            content = await audio.read()
+            await out_file.write(content)
+        
+        # Convert to MP3 using ffmpeg
+        if suffix != "mp3":
+            logger.info(f"Converting {audio.filename} from {suffix} to MP3")
+            (
+                ffmpeg.input(input_path)
+                .output(output_path, acodec='mp3', audio_bitrate='128k')
+                .overwrite_output()
+                .run(cmd=["ffmpeg", "-nostdin"], capture_stdout=True, capture_stderr=True)
+            )
+            
+            # Clean up original file
+            if os.path.exists(input_path):
+                os.remove(input_path)
+        else:
+            # If already MP3, just rename
+            os.rename(input_path, output_path)
+        
+        # Return the converted file
+        return FileResponse(
+            path=output_path,
+            filename=f"{os.path.splitext(audio.filename)[0]}.mp3",
+            media_type="audio/mpeg",
+            headers={"Content-Disposition": f"attachment; filename={os.path.splitext(audio.filename)[0]}.mp3"}
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to convert audio file: {e}")
+        # Clean up files
+        for path in [input_path, output_path]:
+            if os.path.exists(path):
+                os.remove(path)
+        raise HTTPException(status_code=500, detail=f"Failed to convert audio file: {str(e)}")
 
 
 @app.post("/api/recognize")
