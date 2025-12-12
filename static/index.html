@@ -226,6 +226,13 @@
             border-left: 4px solid #4facfe;
         }
 
+        .sentence-item.playing {
+            background: #e3f2fd;
+            border-left: 4px solid #4facfe;
+        }
+        
+       
+
         .sentence-item.edit-mode {
             cursor: pointer;
             -webkit-user-select: none;
@@ -243,30 +250,6 @@
             border-left: 4px solid #28a745;
         }
 
-        .sentence-item.selected::before {
-            content: '✓';
-            position: absolute;
-            right: 20px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #28a745;
-            font-weight: bold;
-            font-size: 1.2em;
-        }
-
-        .sentence-item::before {
-            content: '🎵';
-            position: absolute;
-            right: 20px;
-            top: 50%;
-            transform: translateY(-50%);
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        .sentence-item:hover::before {
-            opacity: 0.6;
-        }
 
         .sentence-item:last-child {
             border-bottom: none;
@@ -364,9 +347,24 @@
             }
 
             .sentence-header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 5px;
+                flex-direction: row; /* 更改为行内排列 */
+                align-items: center; /* 垂直居中对齐 */
+                gap: 5px; /* 添加间距 */
+                flex-wrap: nowrap; /* 不换行 */
+            }
+
+            .speaker-tag {
+                max-width: calc(50% - 5px); /* 确保不超过一半的宽度并留出间距 */
+                white-space: nowrap; /* 防止换行 */
+                overflow: hidden; /* 超出部分隐藏 */
+                text-overflow: ellipsis; /* 显示省略号 */
+            }
+
+            .timestamp {
+                max-width: calc(50% - 5px); /* 确保不超过一半的宽度并留出间距 */
+                white-space: nowrap; /* 防止换行 */
+                overflow: hidden; /* 超出部分隐藏 */
+                text-overflow: ellipsis; /* 显示省略号 */
             }
         }
     </style>
@@ -743,23 +741,14 @@
                     
                     const displayStyle = isBilingualMode ? 'block' : 'none';
                     translationHtml = `
-                        <div class="translation-content translation-section" style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 8px; border-left: 3px solid #4facfe; display: ${displayStyle};">
-                            <div class="translation-item" style="margin-bottom: 8px;">
-                                <span style="font-weight: bold; color: #666; font-size: 12px;">${sourceFlag} 原文:</span>
-                                <div style="margin-top: 3px; color: #333;">${sentence.text}</div>
-                            </div>
-                            <div class="translation-item">
-                                <span style="font-weight: bold; color: #666; font-size: 12px;">${targetFlag} 翻译:</span>
-                                <div style="margin-top: 3px; color: #555; font-style: italic;">${sentence.translation.source_lang === 'zh' ? sentence.translation.en : sentence.translation.zh}</div>
-                            </div>
-                        </div>
+                        <div style="margin-top: 3px; color: #555555; font-style: italic; font-size: 14px;">${sentence.translation.source_lang === 'zh' ? sentence.translation.en : sentence.translation.zh}</div>
                     `;
                 }
                 
                 sentenceDiv.innerHTML = `
                     <div class="sentence-header">
                         <span class="speaker-tag" style="background: ${speakerColor}">${sentence.speaker}</span>
-                        <span class="timestamp">🎵 ${formatTimeToHMS(sentence.start)} - ${formatTimeToHMS(sentence.end)} (点击播放)</span>
+                        <span class="timestamp">🎵 ${formatTimeToHMS(sentence.start)} - ${formatTimeToHMS(sentence.end)}</span>
                         <button class="edit-text-btn" onclick="toggleTextEdit(${index}, event)" style="display: none; background: #28a745; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 12px; margin-left: 10px;">✏️ 编辑</button>
                     </div>
                     <div class="sentence-text" id="sentence-text-${index}">${sentence.text}</div>
@@ -773,7 +762,8 @@
                         e.preventDefault();
                         toggleSentenceSelection(index, sentenceDiv);
                     } else {
-                        playAudioSegment(sentence.start, sentence.end, sentenceDiv);
+                        // 点击分句时跳转到对应时间点并播放
+                        playAudioSegment(parseFloat(sentenceDiv.dataset.start), parseFloat(sentenceDiv.dataset.end), sentenceDiv);
                     }
                 });
                 
@@ -1086,6 +1076,68 @@
                         // 不立即清理，等播放完成后再清理
                     }
                 });
+            }
+            
+            // 添加播放进度监听器，实现播放器与分句列表的双向绑定
+            if (audioPlayer && !audioPlayer.hasAttribute('data-progress-listener')) {
+                audioPlayer.setAttribute('data-progress-listener', 'true');
+                
+                // 监听播放进度变化
+                audioPlayer.addEventListener('timeupdate', function() {
+                    highlightCurrentSentence(this.currentTime);
+                });
+                
+                // 监听播放结束事件
+                audioPlayer.addEventListener('ended', function() {
+                    // 移除所有高亮
+                    document.querySelectorAll('.sentence-item.playing').forEach(item => {
+                        item.classList.remove('playing');
+                    });
+                });
+            }
+        }
+        
+        // 高亮显示当前播放时间对应的分句
+        function highlightCurrentSentence(currentTime) {
+            // 移除之前的所有高亮
+            document.querySelectorAll('.sentence-item.playing').forEach(item => {
+                item.classList.remove('playing');
+            });
+            
+            // 查找当前时间对应的分句
+            const sentences = document.querySelectorAll('.sentence-item');
+            let currentSentence = null;
+            
+            for (let i = 0; i < sentences.length; i++) {
+                const start = parseFloat(sentences[i].dataset.start);
+                const end = parseFloat(sentences[i].dataset.end);
+                
+                if (currentTime >= start && currentTime <= end) {
+                    currentSentence = sentences[i];
+                    break;
+                }
+            }
+            
+            // 如果找到了对应的分句
+            if (currentSentence) {
+                currentSentence.classList.add('playing');
+                
+                // 自动滚动到对应的分句
+                const container = document.querySelector('.sentences-list-wrapper');
+                if (container) {
+                    const containerRect = container.getBoundingClientRect();
+                    const sentenceRect = currentSentence.getBoundingClientRect();
+                    
+                    // 检查元素是否在可视区域内
+                    if (sentenceRect.top < containerRect.top || sentenceRect.bottom > containerRect.bottom) {
+                        // 计算滚动位置，使元素居中
+                        const scrollTop = currentSentence.offsetTop - container.offsetTop - container.clientHeight / 2 + currentSentence.clientHeight / 2;
+                        container.scrollTo({
+                            top: scrollTop,
+                            behavior: 'smooth'
+                        });
+                    }
+                }
             }
         }
 
