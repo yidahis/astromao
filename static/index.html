@@ -179,8 +179,9 @@
         .sentences-container {
             background: white;
             border-radius: 10px;
-            overflow: visible;
+            overflow: hidden;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            width: 100%;
         }
 
         .sentences-header {
@@ -190,12 +191,18 @@
             background: white;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             border-radius: 10px 10px 0 0;
+            transition: all 0.3s ease;
+        }
+
+        .sentences-header:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
 
         .sentences-list-wrapper {
             max-height: calc(100vh - 200px);
             overflow-y: auto;
             border-radius: 0 0 10px 10px;
+            overflow-x: hidden; /* 禁止水平滚动 */
         }
 
         .sentence-item {
@@ -204,11 +211,13 @@
             transition: all 0.3s ease;
             cursor: pointer;
             position: relative;
+            overflow-x: hidden; /* 禁止水平滚动 */
+            word-wrap: break-word; /* 允许长单词换行 */
+            word-break: break-word; /* 在适当位置断行 */
         }
 
         .sentence-item:hover {
             background: #f0f8ff;
-            transform: translateX(5px);
             box-shadow: 0 2px 8px rgba(79, 172, 254, 0.2);
         }
 
@@ -268,6 +277,8 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 8px;
+            overflow-x: hidden;
+            flex-wrap: wrap;
         }
 
         .speaker-tag {
@@ -277,16 +288,26 @@
             border-radius: 20px;
             font-size: 0.9em;
             font-weight: 500;
+            overflow-x: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 50%;
         }
 
         .timestamp {
             color: #666;
             font-size: 0.9em;
+            overflow-x: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .sentence-text {
             color: #333;
             line-height: 1.5;
+            overflow-x: hidden; /* 禁止水平滚动 */
+            word-wrap: break-word; /* 允许长单词换行 */
+            word-break: break-word; /* 在适当位置断行 */
         }
 
         .error-message {
@@ -392,51 +413,53 @@
             <div class="success-message" id="successMessage"></div>
 
             <div class="results-section" id="resultsSection">
-                <div class="results-header">
-                    <h3>📊 识别结果</h3>
-                    <!-- 音频播放器 -->
-                    <audio id="audioPlayer" controls style="width: 100%; margin-top: 15px; display: none;">
-                        您的浏览器不支持音频播放。
-                    </audio>
-                </div>
-
-                <div class="stats" id="stats">
-                    <div class="stat-item">
-                        <div class="stat-value" id="totalDuration">0</div>
-                        <div class="stat-label">总时长 (秒)</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="sentenceCount">0</div>
-                        <div class="stat-label">句子数量</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="speakerCount">0</div>
-                        <div class="stat-label">说话人数</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="wordCount">0</div>
-                        <div class="stat-label">字符数</div>
-                    </div>
-                </div>
-
-                <div class="full-text">
-                    <h4>📝 完整文本</h4>
-                    <div id="fullText"></div>
-                </div>
-
-                <div class="result-actions" id="resultActions" style="display: none; padding: 20px; background: #f8f9fa; border-top: 1px solid #eee; text-align: center;">
-                    <button onclick="saveResult()" style="background: #00b894; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin: 0 10px; cursor: pointer;">💾 保存结果</button>
-                    <button onclick="exportResult()" style="background: #4facfe; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin: 0 10px; cursor: pointer;">📥 导出JSON</button>
-                </div>
-
                 <div class="sentences-container">
                     <div class="sentences-header">
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #f8f9fa; border-bottom: 1px solid #eee;">
+                        <div style="padding: 20px; background: #f8f9fa;">
+                            <h3>📊 识别结果</h3>
+                        </div>
+                        
+                        <div class="stats" id="stats">
+                            <div class="stat-item">
+                                <div class="stat-value" id="totalDuration">0</div>
+                                <div class="stat-label">总时长 (秒)</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="sentenceCount">0</div>
+                                <div class="stat-label">句子数量</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="speakerCount">0</div>
+                                <div class="stat-label">说话人数</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="wordCount">0</div>
+                                <div class="stat-label">字符数</div>
+                            </div>
+                        </div>
+
+                        <div class="full-text" style="margin: 0 20px 20px; padding: 20px;">
+                            <h4>📝 完整文本</h4>
+                            <div id="fullText"></div>
+                        </div>
+                        
+                        <div class="result-actions" id="resultActions" style="display: none; padding: 20px; background: #f8f9fa; border-top: 1px solid #eee; text-align: center;">
+                            <button onclick="saveResult()" style="background: #00b894; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin: 0 10px; cursor: pointer;">💾 保存结果</button>
+                            <button onclick="exportResult()" style="background: #4facfe; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin: 0 10px; cursor: pointer;">📥 导出JSON</button>
+                        </div>
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #f8f9fa; border-top: 1px solid #eee; border-bottom: 1px solid #eee;">
                             <h4 style="margin: 0;">🎯 分句结果</h4>
                             <div style="display: flex; gap: 10px;">
                                 <button id="bilingualModeBtn" onclick="toggleBilingualMode()" style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; display: inline-block; font-size: 14px; line-height: 1.4; text-align: center; vertical-align: middle; -webkit-appearance: none; -moz-appearance: none; appearance: none;" title="双语模式">🌐 双语模式</button>
                                 <button id="editModeBtn" onclick="toggleEditMode()" style="background: #fd79a8; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; display: inline-block; font-size: 14px; line-height: 1.4; text-align: center; vertical-align: middle; -webkit-appearance: none; -moz-appearance: none; appearance: none;">✏️ 编辑模式</button>
                             </div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #f8f9fa; border-top: 1px solid #eee; border-bottom: 1px solid #eee;">
+                            <!-- 音频播放器 -->
+                            <audio id="audioPlayer" controls style="width: 100%; margin-top: 15px; display: none;">
+                                您的浏览器不支持音频播放。
+                            </audio>
                         </div>
                         <div id="editControlPanel" style="display: none; padding: 10px 20px; background: #f1f3f5; border-bottom: 1px solid #eee;">
                             <span id="selectedCount" style="margin-right: 15px; font-weight: bold;">已选择: 0</span>
@@ -448,6 +471,8 @@
                     <div class="sentences-list-wrapper">
                         <div id="sentencesList"></div>
                     </div>
+                </div>
+            </div>
                 </div>
             </div>
 
