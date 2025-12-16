@@ -809,8 +809,17 @@
                         e.preventDefault();
                         toggleSentenceSelection(index, sentenceDiv);
                     } else {
-                        // 点击分句时跳转到对应时间点并播放
-                        playAudioSegment(parseFloat(sentenceDiv.dataset.start), parseFloat(sentenceDiv.dataset.end), sentenceDiv);
+                        // 检查当前分句是否正在播放
+                        if (sentenceDiv.classList.contains('playing')) {
+                            // 如果正在播放，则暂停
+                            if (audioPlayer) {
+                                audioPlayer.pause();
+                                sentenceDiv.classList.remove('playing');
+                            }
+                        } else {
+                            // 如果没有播放，则播放当前分句
+                            playAudioSegment(parseFloat(sentenceDiv.dataset.start), parseFloat(sentenceDiv.dataset.end), sentenceDiv);
+                        }
                     }
                 });
                 
