@@ -264,6 +264,11 @@
             flex-wrap: wrap;
         }
 
+        .sentence-buttons {
+            display: flex;
+            gap: 5px; /* 按钮之间的间距 */
+        }
+
         .speaker-tag {
             background: #4facfe;
             color: white;
@@ -283,6 +288,42 @@
             overflow-x: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+        }
+
+        .sentence-buttons {
+            display: flex;
+            gap: 5px; /* 按钮之间的间距 */
+        }
+
+        .merge-prev-btn {
+            background: #ffc107;
+            color: #212529;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            display: none; /* 默认隐藏 */
+        }
+
+        .edit-text-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            display: none; /* 默认隐藏 */
+        }
+
+        .sentence-item:not(.edit-mode):hover .sentence-buttons .merge-prev-btn,
+        .sentence-item:not(.edit-mode):hover .sentence-buttons .edit-text-btn {
+            display: inline-block; /* 非编辑模式下鼠标悬停时显示 */
+        }
+
+        .sentence-item.edit-mode .merge-prev-btn {
+            display: none !important; /* 编辑模式下始终隐藏合并按钮 */
         }
 
         .sentence-text {
@@ -437,8 +478,8 @@
                         </div>
 
                         <div class="full-text" style="margin: 0 20px 20px; padding: 20px;">
-                            <h4>📝 完整文本</h4>
-                            <div id="fullText"></div>
+                            <button id="toggleFullTextBtn" onclick="toggleFullText()" style="background: #4facfe; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%;">🔽 隐藏完整文本</button>
+                            <div id="fullText" style="margin-top: 15px;"></div>
                         </div>
                         
                         <div class="result-actions" id="resultActions" style="display: none; padding: 20px; background: #f8f9fa; border-top: 1px solid #eee; text-align: center;">
@@ -448,10 +489,6 @@
                         
                         <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #f8f9fa; border-top: 1px solid #eee; border-bottom: 1px solid #eee;">
                             <h4 style="margin: 0;">🎯 分句结果</h4>
-                            <div style="display: flex; gap: 10px;">
-                                <button id="bilingualModeBtn" onclick="toggleBilingualMode()" style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; display: inline-block; font-size: 14px; line-height: 1.4; text-align: center; vertical-align: middle; -webkit-appearance: none; -moz-appearance: none; appearance: none;" title="双语模式">🌐 双语模式</button>
-                                <button id="editModeBtn" onclick="toggleEditMode()" style="background: #fd79a8; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; display: inline-block; font-size: 14px; line-height: 1.4; text-align: center; vertical-align: middle; -webkit-appearance: none; -moz-appearance: none; appearance: none;">✏️ 编辑模式</button>
-                            </div>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background: #f8f9fa; border-top: 1px solid #eee; border-bottom: 1px solid #eee;">
                             <!-- 音频播放器 -->
@@ -715,6 +752,13 @@
 
             // Display full text
             document.getElementById('fullText').textContent = result.text;
+            // 初始化时隐藏完整文本内容
+            document.getElementById('fullText').style.display = 'none';
+            // 更新按钮文本
+            const toggleBtn = document.getElementById('toggleFullTextBtn');
+            if (toggleBtn) {
+                toggleBtn.innerHTML = '🔽 显示完整文本';
+            }
 
             // 设置音频播放器
             setupAudioPlayer();
@@ -749,7 +793,10 @@
                     <div class="sentence-header">
                         <span class="speaker-tag" style="background: ${speakerColor}">${sentence.speaker}</span>
                         <span class="timestamp">🎵 ${formatTimeToHMS(sentence.start)} - ${formatTimeToHMS(sentence.end)}</span>
-                        <button class="edit-text-btn" onclick="toggleTextEdit(${index}, event)" style="display: none; background: #28a745; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 12px; margin-left: 10px;">✏️ 编辑</button>
+                        <div class="sentence-buttons">
+                            <button class="edit-text-btn" onclick="toggleTextEdit(${index}, event)" style="background: #28a745; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 12px;">✏️ 编辑</button>
+                            <button class="merge-prev-btn" onclick="mergeWithPrevious(${index}, event)" style="background: #ffc107; color: #212529; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 12px;">&uarr; 合并</button>
+                        </div>
                     </div>
                     <div class="sentence-text" id="sentence-text-${index}">${sentence.text}</div>
                     <textarea class="sentence-edit-input" id="sentence-edit-${index}" style="display: none; width: 100%; min-height: 60px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; resize: vertical;">${sentence.text}</textarea>
@@ -1407,154 +1454,23 @@
             document.getElementById('historyModal').style.display = 'none';
         }
 
-        // 切换编辑模式
-        function toggleEditMode() {
-            isEditMode = !isEditMode;
-            const editModeBtn = document.getElementById('editModeBtn');
-            const editControlPanel = document.getElementById('editControlPanel');
-            const sentenceItems = document.querySelectorAll('.sentence-item');
+        // 切换完整文本显示状态
+        function toggleFullText() {
+            const fullTextDiv = document.getElementById('fullText');
+            const toggleBtn = document.getElementById('toggleFullTextBtn');
             
-            // 添加错误检查
-            if (!editModeBtn) {
-                console.error('编辑模式按钮未找到');
-                return;
+            if (fullTextDiv && toggleBtn) {
+                // 检查完整文本当前是否可见
+                if (fullTextDiv.style.display === 'none') {
+                    // 当前隐藏，需要显示
+                    fullTextDiv.style.display = 'block';
+                    toggleBtn.innerHTML = '🔼 隐藏完整文本';
+                } else {
+                    // 当前显示，需要隐藏
+                    fullTextDiv.style.display = 'none';
+                    toggleBtn.innerHTML = '🔽 显示完整文本';
+                }
             }
-            if (!editControlPanel) {
-                console.error('编辑控制面板未找到');
-                return;
-            }
-            
-            if (isEditMode) {
-                // 进入编辑模式
-                editModeBtn.textContent = '👁️ 查看模式';
-                editModeBtn.style.background = '#17a2b8';
-                editControlPanel.style.display = 'block';
-                
-                // 为所有分句添加编辑模式样式
-                sentenceItems.forEach(item => {
-                    item.classList.add('edit-mode');
-                });
-                
-                // 显示所有编辑按钮
-                document.querySelectorAll('.edit-text-btn').forEach(btn => {
-                    btn.style.display = 'inline-block';
-                });
-                
-                showSuccess('已进入编辑模式，点击分句进行选择，可选择多个分句进行合并，或点击编辑按钮修改文本');
-            } else {
-                // 退出编辑模式
-                editModeBtn.textContent = '✏️ 编辑模式';
-                editModeBtn.style.background = '#fd79a8';
-                editControlPanel.style.display = 'none';
-                
-                // 移除编辑模式样式和选中状态
-                sentenceItems.forEach(item => {
-                    item.classList.remove('edit-mode', 'selected');
-                });
-                
-                // 隐藏所有编辑按钮
-                document.querySelectorAll('.edit-text-btn').forEach(btn => {
-                    btn.style.display = 'none';
-                });
-                
-                // 退出所有文本编辑状态
-                document.querySelectorAll('.sentence-edit-input').forEach(input => {
-                    input.style.display = 'none';
-                });
-                document.querySelectorAll('.sentence-text').forEach(text => {
-                    text.style.display = 'block';
-                });
-                
-                // 清除选择
-                selectedSentences.clear();
-                updateSelectedCount();
-                
-                showSuccess('已退出编辑模式');
-            }
-        }
-
-        // 切换双语模式
-        function toggleBilingualMode() {
-            isBilingualMode = !isBilingualMode;
-            const bilingualModeBtn = document.getElementById('bilingualModeBtn');
-            
-            if (!bilingualModeBtn) {
-                console.error('双语模式按钮未找到');
-                return;
-            }
-            
-            if (isBilingualMode) {
-                // 开启双语模式
-                bilingualModeBtn.textContent = '🌐 双语模式';
-                bilingualModeBtn.style.background = '#28a745';
-                bilingualModeBtn.title = '双语模式';
-                
-                // 显示所有翻译内容
-                document.querySelectorAll('.translation-content').forEach(element => {
-                    element.style.display = 'block';
-                });
-                
-                showSuccess('已开启双语模式，显示翻译内容');
-            } else {
-                // 关闭双语模式
-                bilingualModeBtn.textContent = '🔤 单语模式';
-                bilingualModeBtn.style.background = '#6c757d';
-                bilingualModeBtn.title = '单语模式';
-                
-                // 隐藏所有翻译内容
-                document.querySelectorAll('.translation-content').forEach(element => {
-                    element.style.display = 'none';
-                });
-                
-                showSuccess('已关闭双语模式，隐藏翻译内容');
-            }
-        }
-
-        // 切换分句选择状态
-        function toggleSentenceSelection(index, sentenceElement) {
-            if (selectedSentences.has(index)) {
-                selectedSentences.delete(index);
-                sentenceElement.classList.remove('selected');
-            } else {
-                selectedSentences.add(index);
-                sentenceElement.classList.add('selected');
-            }
-            
-            updateSelectedCount();
-        }
-
-        // 更新选中计数
-        function updateSelectedCount() {
-            const count = selectedSentences.size;
-            document.getElementById('selectedCount').textContent = count;
-            
-            const mergeBtn = document.getElementById('mergeBtn');
-            const mergeAndTranslateBtn = document.getElementById('mergeAndTranslateBtn');
-            mergeBtn.disabled = count < 2;
-            mergeAndTranslateBtn.disabled = count < 2;
-            if (count >= 2) {
-                mergeBtn.style.background = '#28a745';
-                mergeBtn.style.cursor = 'pointer';
-                mergeAndTranslateBtn.style.background = '#fd79a8';
-                mergeAndTranslateBtn.style.cursor = 'pointer';
-                mergeAndTranslateBtn.style.opacity = '1';
-            } else {
-                mergeBtn.style.background = '#6c757d';
-                mergeBtn.style.cursor = 'not-allowed';
-                mergeAndTranslateBtn.style.background = '#6c757d';
-                mergeAndTranslateBtn.style.cursor = 'not-allowed';
-                mergeAndTranslateBtn.style.opacity = '0.6';
-            }
-        }
-
-        // 清除选择
-        function clearSelection() {
-            selectedSentences.clear();
-            document.querySelectorAll('.sentence-item.selected').forEach(item => {
-                item.classList.remove('selected');
-            });
-            updateSelectedCount();
-            showSuccess('已清除所有选择');
         }
 
         // 切换文本编辑状态
@@ -1833,6 +1749,75 @@
             clearSelection();
             
             showSuccess(`成功合并了 ${selectedIndices.length} 个分句并同步更新！`);
+        }
+
+        // 合并当前句子与上一个句子
+        function mergeWithPrevious(index, event) {
+            event.stopPropagation(); // 阻止事件冒泡
+            
+            if (index <= 0) {
+                showError('已经是第一句，无法与上一句合并');
+                return;
+            }
+            
+            if (!currentResult || !currentResult.sentences) {
+                showError('没有可用的识别结果');
+                return;
+            }
+            
+            const prevSentence = currentResult.sentences[index - 1];
+            const currentSentence = currentResult.sentences[index];
+            
+            // 检查说话人是否一致
+            if (prevSentence.speaker !== currentSentence.speaker) {
+                if (!confirm(`两句说话人不同（${prevSentence.speaker} vs ${currentSentence.speaker}），是否仍要合并？`)) {
+                    return;
+                }
+            }
+            
+            // 合并文本
+            const mergedText = prevSentence.text + ' ' + currentSentence.text;
+            
+            // 显示提示信息
+            showSuccess('注意：当前版本合并句子后只能重新翻译文本，无法重新进行语音识别。要实现完整的语音识别和翻译功能，需要后端提供相应API支持。');
+            
+            // 调用翻译API
+            translateText(mergedText)
+                .then(translation => {
+                    // 创建合并后的句子
+                    const mergedSentence = {
+                        start: prevSentence.start,
+                        end: currentSentence.end,
+                        text: mergedText,
+                        speaker: prevSentence.speaker,
+                        translation: translation
+                    };
+                    
+                    // 构造新的句子列表
+                    const newSentences = [
+                        ...currentResult.sentences.slice(0, index - 1),
+                        mergedSentence,
+                        ...currentResult.sentences.slice(index + 1)
+                    ];
+                    
+                    // 更新结果
+                    currentResult.sentences = newSentences;
+                    currentResult.text = newSentences.map(s => s.text).join(' ');
+                    
+                    // 更新说话人列表
+                    currentResult.speakers = [...new Set(newSentences.map(s => s.speaker))];
+                    
+                    // 自动同步更新JSON文件
+                    autoSyncResult();
+                    
+                    // 重新显示结果
+                    displayResults(currentResult);
+                    
+                    showSuccess('成功与上一句合并并完成翻译！');
+                })
+                .catch(error => {
+                    showError('翻译失败: ' + error.message);
+                });
         }
 
         // 点击模态框外部关闭
